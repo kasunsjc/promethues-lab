@@ -1,0 +1,5 @@
+[client]
+user=mysqluser
+password=mysqlpassword
+host=mysql
+port=3306
