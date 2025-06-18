@@ -1,16 +1,16 @@
-# Prometheus Monitoring Stack
+# 🔭 Prometheus Monitoring Stack 📊
 
 This repository contains a Docker Compose setup for monitoring with Prometheus, Node Exporter, MySQL, MySQL Exporter, and Grafana.
 
-## Components
+## 🧩 Components
 
-- **Prometheus**: Time series database for storing metrics
-- **Node Exporter**: Provides system metrics like CPU, memory, disk usage
-- **MySQL**: Sample database with test data
-- **MySQL Exporter**: Collects metrics from MySQL
-- **Grafana**: Visualizes metrics from Prometheus
+- **📈 Prometheus**: Time series database for storing metrics
+- **🖥️ Node Exporter**: Provides system metrics like CPU, memory, disk usage
+- **🗄️ MySQL**: Sample database with test data
+- **📡 MySQL Exporter**: Collects metrics from MySQL
+- **📊 Grafana**: Visualizes metrics from Prometheus
 
-## Quick Start
+## 🚀 Quick Start
 
 Start the monitoring stack:
 
@@ -18,25 +18,25 @@ Start the monitoring stack:
 docker-compose up -d
 ```
 
-## Access Services
+## 🔗 Access Services
 
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3000
+- **📈 Prometheus**: [http://localhost:9090](http://localhost:9090)
+- **📊 Grafana**: [http://localhost:3000](http://localhost:3000)
   - Username: admin
   - Password: grafana
-- **MySQL**:
+- **🗄️ MySQL**:
   - Host: localhost
   - Port: 3306
   - Username: mysqluser
   - Password: mysqlpassword
   - Database: sample_db
-- **MySQL Exporter**: http://localhost:9104/metrics
+- **📡 MySQL Exporter**: [http://localhost:9104/metrics](http://localhost:9104/metrics)
 
-## Helper Scripts
+## 🛠️ Helper Scripts
 
 Two helper scripts are provided to simplify common operations:
 
-### Interactive Helper
+### 🧙‍♂️ Interactive Helper
 
 Run the interactive helper with:
 
@@ -46,7 +46,7 @@ Run the interactive helper with:
 
 This script provides an interactive menu for common operations.
 
-### Command Line Helper
+### ⌨️ Command Line Helper
 
 For non-interactive usage, you can use:
 
@@ -56,23 +56,23 @@ For non-interactive usage, you can use:
 
 Available commands:
 
-- `start` - Start all services
-- `stop` - Stop all services
-- `restart` - Restart all services
-- `status` - Show status of all services
-- `light-load` - Generate light SQL load (10 queries)
-- `medium-load` - Generate medium SQL load (100 queries) 
-- `heavy-load` - Generate heavy SQL load (1000 queries)
-- `mysql-cli` - Connect to MySQL CLI
-- `show-data` - Show sample table data
-- `count-rows` - Count rows in sample table
-- `reset-data` - Reset sample data (clear and reload)
-- `mysql-logs` - View MySQL logs
-- `prom-logs` - View Prometheus logs
-- `exporter-logs` - View MySQL Exporter logs
-- `grafana-logs` - View Grafana logs
-- `access` - Show access information
-- `help` - Show help message
+- `start` - ▶️ Start all services
+- `stop` - ⏹️ Stop all services
+- `restart` - 🔄 Restart all services
+- `status` - ℹ️ Show status of all services
+- `light-load` - 🔸 Generate light SQL load (10 queries)
+- `medium-load` - 🔶 Generate medium SQL load (100 queries)
+- `heavy-load` - 🔥 Generate heavy SQL load (1000 queries)
+- `mysql-cli` - 💻 Connect to MySQL CLI
+- `show-data` - 📋 Show sample table data
+- `count-rows` - 🔢 Count rows in sample table
+- `reset-data` - 🔁 Reset sample data (clear and reload)
+- `mysql-logs` - 📜 View MySQL logs
+- `prom-logs` - 📜 View Prometheus logs
+- `exporter-logs` - 📜 View MySQL Exporter logs
+- `grafana-logs` - 📜 View Grafana logs
+- `access` - 🔑 Show access information
+- `help` - ❓ Show help message
 
 Examples:
 
@@ -87,13 +87,13 @@ Examples:
 ./commands.sh reset-data
 ```
 
-## Grafana Dashboards
+## 📊 Grafana Dashboards
 
 A pre-configured MySQL monitoring dashboard is included. You can access it in Grafana after logging in.
 
-## Directory Structure
+## 📂 Directory Structure
 
-- `mysql-init/`: SQL initialization scripts for MySQL
-- `mysqld-exporter/`: Configuration for MySQL Exporter
-- `grafana/`: Grafana provisioning files and dashboards
-- `prometheus.yml`: Prometheus configuration
+- `mysql-init/`: 🗄️ SQL initialization scripts for MySQL
+- `mysqld-exporter/`: 📡 Configuration for MySQL Exporter
+- `grafana/`: 📊 Grafana provisioning files and dashboards
+- `prometheus.yml`: 📈 Prometheus configuration
