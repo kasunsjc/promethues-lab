@@ -1,10 +1,5 @@
 #!/bin/bash
-# 🔭 Prometheus Monitoring   echo -e "${BOLD}🔐 Access Information:${NC}"
-  echo -e "  ${GREEN}16.${NC} 📜 View InfluxDB logs"
-  echo -e "  ${GREEN}17.${NC} 🔑 Display access URLs and credentials"
-  echo -e "  ${GREEN}18.${NC} 🔥 Run k6 Load Tests"
-  echo -e "  ${GREEN}19.${NC} 📊 Import Official k6 Dashboard to Grafana"
-  echo -e "  ${GREEN}0.${NC} 👋 Exit" Helper Script 🚀
+# 🔭 Prometheus Monitoring Helper Script 🚀
 # This script provides common commands for managing the Prometheus monitoring stack
 
 # Text formatting
@@ -26,26 +21,28 @@ display_menu() {
   echo -e "  ${GREEN}2.${NC} ⏹️  Stop all services"
   echo -e "  ${GREEN}3.${NC} 🔄 Restart all services"
   echo -e "  ${GREEN}4.${NC} 📋 View running services"
+  echo -e "  ${GREEN}5.${NC} 🗑️  Delete stack and volumes"
   echo
   echo -e "${BOLD}🗄️  MySQL Operations:${NC}"
-  echo -e "  ${GREEN}5.${NC} 💻 Connect to MySQL CLI"
-  echo -e "  ${GREEN}6.${NC} 🔸 Generate light load (10 queries)"
-  echo -e "  ${GREEN}7.${NC} 🔶 Generate medium load (100 queries)"
-  echo -e "  ${GREEN}8.${NC} 🔥 Generate heavy load (1000 queries)"
+  echo -e "  ${GREEN}6.${NC} 💻 Connect to MySQL CLI"
+  echo -e "  ${GREEN}7.${NC} 🔸 Generate light load (10 queries)"
+  echo -e "  ${GREEN}8.${NC} 🔶 Generate medium load (100 queries)"
+  echo -e "  ${GREEN}9.${NC} 🔥 Generate heavy load (1000 queries)"
   echo
   echo -e "${BOLD}📊 Logs & Monitoring:${NC}"
-  echo -e "  ${GREEN}9.${NC} 📜 View MySQL logs"
-  echo -e "  ${GREEN}10.${NC} 📜 View Prometheus logs"
-  echo -e "  ${GREEN}11.${NC} 📜 View MySQL Exporter logs"
-  echo -e "  ${GREEN}12.${NC} 📜 View Grafana logs"
-  echo -e "  ${GREEN}13.${NC} 📜 View Ubuntu logs"
-  echo -e "  ${GREEN}14.${NC} 📜 View Nginx logs"
-  echo -e "  ${GREEN}15.${NC} 📜 View Nginx Exporter logs"
+  echo -e "  ${GREEN}10.${NC} 📜 View MySQL logs"
+  echo -e "  ${GREEN}11.${NC} 📜 View Prometheus logs"
+  echo -e "  ${GREEN}12.${NC} 📜 View MySQL Exporter logs"
+  echo -e "  ${GREEN}13.${NC} 📜 View Grafana logs"
+  echo -e "  ${GREEN}14.${NC} 📜 View Ubuntu logs"
+  echo -e "  ${GREEN}15.${NC} 📜 View Nginx logs"
+  echo -e "  ${GREEN}16.${NC} 📜 View Nginx Exporter logs"
   echo
   echo -e "${BOLD}🔐 Access Information:${NC}"
-  echo -e "  ${GREEN}16.${NC} � View InfluxDB logs"
-  echo -e "  ${GREEN}17.${NC} �🔑 Display access URLs and credentials"
-  echo -e "  ${GREEN}18.${NC} 🔥 Run k6 Load Tests"
+  echo -e "  ${GREEN}17.${NC} 📜 View InfluxDB logs"
+  echo -e "  ${GREEN}18.${NC} 🔑 Display access URLs and credentials"
+  echo -e "  ${GREEN}19.${NC} 🔥 Run k6 Load Tests"
+  echo -e "  ${GREEN}20.${NC} 📊 Import Official k6 Dashboard to Grafana"
   echo -e "  ${GREEN}0.${NC} 👋 Exit"
   echo
 }
@@ -65,8 +62,9 @@ run_command() {
 # Display the initial menu
 display_menu
 
-# Wait for user input  while true; do
-  read -p "Enter your choice [0-18]: " choice
+# Wait for user input
+while true; do
+  read -p "Enter your choice [0-20]: " choice
   case $choice in
     0)
       echo -e "${BLUE}👋 Exiting. Goodbye!${NC}"
@@ -85,42 +83,45 @@ display_menu
       run_command "docker-compose ps"
       ;;
     5)
-      run_command "docker exec -it mysql mysql -u mysqluser -pmysqlpassword sample_db"
+      run_command "docker-compose down -v"
       ;;
     6)
-      run_command "for i in {1..10}; do docker exec -i mysql mysql -u mysqluser -pmysqlpassword -e \"USE sample_db; SELECT * FROM sample_table WHERE id=FLOOR(1 + RAND() * 5); INSERT INTO sample_table (name, value, description) VALUES (CONCAT('Generated Item ', \$i), FLOOR(RAND()*1000), 'This is a generated item for load testing');\"; done"
+      run_command "docker exec -it mysql mysql -u mysqluser -pmysqlpassword sample_db"
       ;;
     7)
-      run_command "for i in {1..100}; do docker exec -i mysql mysql -u mysqluser -pmysqlpassword -e \"USE sample_db; SELECT * FROM sample_table WHERE id=FLOOR(1 + RAND() * 5); INSERT INTO sample_table (name, value, description) VALUES (CONCAT('Generated Item ', \$i), FLOOR(RAND()*1000), 'This is a generated item for load testing');\" &> /dev/null; echo -ne \"🔄 Progress: \$i/100\\r\"; done; echo"
+      run_command "for i in {1..10}; do docker exec -i mysql mysql -u mysqluser -pmysqlpassword -e \"USE sample_db; SELECT * FROM sample_table WHERE id=FLOOR(1 + RAND() * 5); INSERT INTO sample_table (name, value, description) VALUES (CONCAT('Generated Item ', \$i), FLOOR(RAND()*1000), 'This is a generated item for load testing');\"; done"
       ;;
     8)
-      run_command "for i in {1..1000}; do docker exec -i mysql mysql -u mysqluser -pmysqlpassword -e \"USE sample_db; SELECT * FROM sample_table WHERE id=FLOOR(1 + RAND() * 5); INSERT INTO sample_table (name, value, description) VALUES (CONCAT('Generated Item ', \$i), FLOOR(RAND()*1000), 'This is a generated item for load testing');\" &> /dev/null; if [ \$((\$i % 10)) -eq 0 ]; then echo -ne \"🔄 Progress: \$i/1000\\r\"; fi; done; echo"
+      run_command "for i in {1..100}; do docker exec -i mysql mysql -u mysqluser -pmysqlpassword -e \"USE sample_db; SELECT * FROM sample_table WHERE id=FLOOR(1 + RAND() * 5); INSERT INTO sample_table (name, value, description) VALUES (CONCAT('Generated Item ', \$i), FLOOR(RAND()*1000), 'This is a generated item for load testing');\" &> /dev/null; echo -ne \"🔄 Progress: \$i/100\\r\"; done; echo"
       ;;
     9)
-      run_command "docker logs mysql"
+      run_command "for i in {1..1000}; do docker exec -i mysql mysql -u mysqluser -pmysqlpassword -e \"USE sample_db; SELECT * FROM sample_table WHERE id=FLOOR(1 + RAND() * 5); INSERT INTO sample_table (name, value, description) VALUES (CONCAT('Generated Item ', \$i), FLOOR(RAND()*1000), 'This is a generated item for load testing');\" &> /dev/null; if [ \$((\$i % 10)) -eq 0 ]; then echo -ne \"🔄 Progress: \$i/1000\\r\"; fi; done; echo"
       ;;
     10)
-      run_command "docker logs prometheus"
+      run_command "docker logs mysql"
       ;;
     11)
-      run_command "docker logs mysql-exporter"
+      run_command "docker logs prometheus"
       ;;
     12)
-      run_command "docker logs grafana"
+      run_command "docker logs mysql-exporter"
       ;;
     13)
-      run_command "docker logs ubuntu"
+      run_command "docker logs grafana"
       ;;
     14)
-      run_command "docker logs nginx"
+      run_command "docker logs ubuntu"
       ;;
     15)
-      run_command "docker logs nginx-exporter"
+      run_command "docker logs nginx"
       ;;
     16)
-      run_command "docker logs influxdb"
+      run_command "docker logs nginx-exporter"
       ;;
     17)
+      run_command "docker logs influxdb"
+      ;;
+    18)
       echo -e "${BOLD}${BLUE}=== 🔐 Access Information ===${NC}"
       echo -e "${BOLD}📈 Prometheus:${NC}"
       echo -e "  🔗 URL: http://localhost:9090"
@@ -158,7 +159,7 @@ display_menu
       clear
       display_menu
       ;;
-    18)
+    19)
       clear
       echo -e "${BOLD}${BLUE}=== 🔥 k6 Load Testing ===${NC}"
       echo -e "${YELLOW}Choose a load test to run:${NC}"
@@ -186,11 +187,11 @@ display_menu
           ;;
       esac
       ;;
-    19)
+    20)
       run_command "./import-k6-dashboard.sh"
       ;;
     *)
-      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 19.${NC}"
+      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 20.${NC}"
       ;;
   esac
 done

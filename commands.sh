@@ -18,6 +18,13 @@ stop_all() {
     docker-compose down
 }
 
+# Delete all services including volumes
+delete_stack() {
+    echo "🗑️ Deleting the entire Docker Compose stack (including volumes)..."
+    docker-compose down -v
+    echo "✅ Stack and all associated volumes have been deleted."
+}
+
 # Restart all services
 restart_all() {
     echo "🔄 Restarting all services..."
@@ -213,6 +220,7 @@ usage() {
     echo "🛠️ Available commands:"
     echo "  start         - ▶️  Start all services"
     echo "  stop          - ⏹️  Stop all services"
+    echo "  delete        - 🗑️  Delete stack and volumes"
     echo "  restart       - 🔄 Restart all services"
     echo "  status        - ℹ️  Show status of all services"
     echo "  light-load    - 🔸 Generate light SQL load (10 queries)"
@@ -246,6 +254,9 @@ case "$1" in
         ;;
     stop)
         stop_all
+        ;;
+    delete)
+        delete_stack
         ;;
     restart)
         restart_all

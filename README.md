@@ -94,6 +94,7 @@ Available commands:
 
 - `start` - ▶️ Start all services
 - `stop` - ⏹️ Stop all services
+- `delete` - 🗑️ Delete stack and volumes
 - `restart` - 🔄 Restart all services
 - `status` - ℹ️ Show status of all services
 - `light-load` - 🔸 Generate light SQL load (10 queries)
