@@ -1,5 +1,10 @@
 #!/bin/bash
-# 🔭 Prometheus Monitoring Stack Helper Script 🚀
+# 🔭 Prometheus Monitoring   echo -e "${BOLD}🔐 Access Information:${NC}"
+  echo -e "  ${GREEN}16.${NC} 📜 View InfluxDB logs"
+  echo -e "  ${GREEN}17.${NC} 🔑 Display access URLs and credentials"
+  echo -e "  ${GREEN}18.${NC} 🔥 Run k6 Load Tests"
+  echo -e "  ${GREEN}19.${NC} 📊 Import Official k6 Dashboard to Grafana"
+  echo -e "  ${GREEN}0.${NC} 👋 Exit" Helper Script 🚀
 # This script provides common commands for managing the Prometheus monitoring stack
 
 # Text formatting
@@ -38,7 +43,9 @@ display_menu() {
   echo -e "  ${GREEN}15.${NC} 📜 View Nginx Exporter logs"
   echo
   echo -e "${BOLD}🔐 Access Information:${NC}"
-  echo -e "  ${GREEN}16.${NC} 🔑 Display access URLs and credentials"
+  echo -e "  ${GREEN}16.${NC} � View InfluxDB logs"
+  echo -e "  ${GREEN}17.${NC} �🔑 Display access URLs and credentials"
+  echo -e "  ${GREEN}18.${NC} 🔥 Run k6 Load Tests"
   echo -e "  ${GREEN}0.${NC} 👋 Exit"
   echo
 }
@@ -59,7 +66,7 @@ run_command() {
 display_menu
 
 # Wait for user input  while true; do
-  read -p "Enter your choice [0-16]: " choice
+  read -p "Enter your choice [0-18]: " choice
   case $choice in
     0)
       echo -e "${BLUE}👋 Exiting. Goodbye!${NC}"
@@ -111,6 +118,9 @@ display_menu
       run_command "docker logs nginx-exporter"
       ;;
     16)
+      run_command "docker logs influxdb"
+      ;;
+    17)
       echo -e "${BOLD}${BLUE}=== 🔐 Access Information ===${NC}"
       echo -e "${BOLD}📈 Prometheus:${NC}"
       echo -e "  🔗 URL: http://localhost:9090"
@@ -139,13 +149,48 @@ display_menu
       echo -e "${BOLD}📊 Nginx Exporter:${NC}"
       echo -e "  🔗 URL: http://localhost:9113/metrics"
       echo
+      echo -e "${BOLD}📦 InfluxDB:${NC}"
+      echo -e "  🔗 URL: http://localhost:8086"
+      echo -e "  📂 Database: k6"
+      echo
       echo -e "Press Enter to continue..."
       read
       clear
       display_menu
       ;;
+    18)
+      clear
+      echo -e "${BOLD}${BLUE}=== 🔥 k6 Load Testing ===${NC}"
+      echo -e "${YELLOW}Choose a load test to run:${NC}"
+      echo -e "  ${GREEN}1.${NC} 🔄 Basic load test (default Nginx endpoint)"
+      echo -e "  ${GREEN}2.${NC} 🔥 Advanced load test (multiple endpoints, spike test)"
+      echo -e "  ${GREEN}0.${NC} 🔙 Back to main menu"
+      echo
+      read -p "Enter your choice [0-2]: " k6_choice
+      case $k6_choice in
+        1)
+          run_command "docker-compose run --rm k6 run /scripts/nginx-load-test.js"
+          ;;
+        2)
+          run_command "docker-compose run --rm k6 run /scripts/nginx-advanced-test.js"
+          ;;
+        0)
+          clear
+          display_menu
+          ;;
+        *)
+          echo -e "${YELLOW}⚠️ Invalid choice.${NC}"
+          sleep 2
+          clear
+          display_menu
+          ;;
+      esac
+      ;;
+    19)
+      run_command "./import-k6-dashboard.sh"
+      ;;
     *)
-      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 16.${NC}"
+      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 19.${NC}"
       ;;
   esac
 done

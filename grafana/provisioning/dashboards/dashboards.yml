@@ -9,3 +9,12 @@ providers:
     editable: true
     options:
       path: /var/lib/grafana/dashboards
+      
+  - name: 'k6 Dashboard'
+    orgId: 1
+    folder: 'k6 Dashboards'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards/k6

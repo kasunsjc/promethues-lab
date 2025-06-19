@@ -143,6 +143,30 @@ nginx_exporter_logs() {
     docker logs nginx-exporter
 }
 
+# View InfluxDB logs
+influxdb_logs() {
+    echo "📜 Viewing InfluxDB logs:"
+    docker logs influxdb
+}
+
+# Run k6 basic load test
+run_k6_basic() {
+    echo "🔥 Running basic k6 load test on Nginx..."
+    docker-compose run --rm k6 run /scripts/nginx-load-test.js
+}
+
+# Run k6 advanced load test
+run_k6_advanced() {
+    echo "🔥 Running advanced k6 load test on Nginx..."
+    docker-compose run --rm k6 run /scripts/nginx-advanced-test.js
+}
+
+# Import k6 dashboard to Grafana
+import_k6_dashboard() {
+    echo "📊 Importing k6 dashboard to Grafana..."
+    ./import-k6-dashboard.sh
+}
+
 # ---------------------
 # 🔐 Access Information
 # ---------------------
@@ -176,6 +200,10 @@ show_access() {
     echo
     echo "📊 Nginx Exporter:"
     echo "  🔗 URL: http://localhost:9113/metrics"
+    echo
+    echo "📦 InfluxDB:"
+    echo "  🔗 URL: http://localhost:8086"
+    echo "  📂 Database: k6"
 }
 
 # Display usage instructions
@@ -201,6 +229,10 @@ usage() {
     echo "  ubuntu-logs   - 📜 View Ubuntu logs"
     echo "  nginx-logs    - 📜 View Nginx logs"
     echo "  nginx-exporter-logs - 📜 View Nginx Exporter logs"
+    echo "  influxdb-logs - 📜 View InfluxDB logs"
+    echo "  k6-basic      - 🔥 Run basic k6 load test"
+    echo "  k6-advanced   - 🔥 Run advanced k6 load test"
+    echo "  k6-dashboard  - 📊 Import k6 dashboard to Grafana"
     echo "  access        - 🔑 Show access information"
     echo "  help          - ❓ Show this help message"
     echo
@@ -262,6 +294,18 @@ case "$1" in
         ;;
     nginx-exporter-logs)
         nginx_exporter_logs
+        ;;
+    influxdb-logs)
+        influxdb_logs
+        ;;
+    k6-basic)
+        run_k6_basic
+        ;;
+    k6-advanced)
+        run_k6_advanced
+        ;;
+    k6-dashboard)
+        import_k6_dashboard
         ;;
     access)
         show_access
