@@ -1,4 +1,4 @@
-# 🔭 Prometheus Mo## 🧩 Components
+# 🔭 Prometheus Monitoring Stack
 
 - **📈 Prometheus**: Time series database for storing metrics
 - **🖥️ Node Exporter**: Provides system metrics like CPU, memory, disk usage
