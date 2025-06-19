@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ubuntu Nginx Server - Prometheus Monitoring</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .info-box {
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+            padding: 10px 15px;
+            margin: 15px 0;
+        }
+        code {
+            background-color: #eee;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .metric {
+            font-weight: bold;
+            color: #2196F3;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.8em;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖥️ Ubuntu Nginx Server</h1>
+        
+        <div class="info-box">
+            <h2>📊 Server Information</h2>
+            <p>This is a simulated Ubuntu server running Nginx, monitored by Prometheus and Node Exporter.</p>
+            <p>You are currently viewing the web server's main page. The server is also exposing metrics
+            that can be viewed and analyzed in Prometheus and Grafana.</p>
+        </div>
+        
+        <h2>🔍 Metrics Available</h2>
+        <p>The following metrics are being exported by this server:</p>
+        <ul>
+            <li><span class="metric">node_cpu_seconds_total</span>: CPU time spent in each mode</li>
+            <li><span class="metric">node_memory_MemTotal_bytes</span>: Total memory available</li>
+            <li><span class="metric">node_memory_MemFree_bytes</span>: Free memory</li>
+            <li><span class="metric">node_filesystem_size_bytes</span>: Filesystem size</li>
+            <li><span class="metric">node_network_receive_bytes_total</span>: Network traffic received</li>
+        </ul>
+        
+        <div class="info-box">
+            <h2>🔗 Useful Links</h2>
+            <p><strong>Node Exporter Metrics:</strong> <a href="http://localhost:9101/metrics">http://localhost:9101/metrics</a></p>
+            <p><strong>Prometheus:</strong> <a href="http://localhost:9090">http://localhost:9090</a></p>
+            <p><strong>Grafana:</strong> <a href="http://localhost:3000">http://localhost:3000</a></p>
+        </div>
+        
+        <h2>🚀 How to Test</h2>
+        <p>To generate some load on this server, you can use the following commands:</p>
+        <pre><code>curl http://localhost:8080/</code></pre>
+        <p>Or use a tool like Apache Bench for load testing:</p>
+        <pre><code>ab -n 1000 -c 10 http://localhost:8080/</code></pre>
+        <p>Then check the metrics in Prometheus or Grafana to see how the server responds!</p>
+    </div>
+    
+    <div class="footer">
+        <p>© 2025 Prometheus Monitoring Demo | Ubuntu + Nginx + Node Exporter</p>
+    </div>
+</body>
+</html>

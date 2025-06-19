@@ -33,9 +33,12 @@ display_menu() {
   echo -e "  ${GREEN}10.${NC} 📜 View Prometheus logs"
   echo -e "  ${GREEN}11.${NC} 📜 View MySQL Exporter logs"
   echo -e "  ${GREEN}12.${NC} 📜 View Grafana logs"
+  echo -e "  ${GREEN}13.${NC} 📜 View Ubuntu logs"
+  echo -e "  ${GREEN}14.${NC} 📜 View Nginx logs"
+  echo -e "  ${GREEN}15.${NC} 📜 View Nginx Exporter logs"
   echo
   echo -e "${BOLD}🔐 Access Information:${NC}"
-  echo -e "  ${GREEN}13.${NC} 🔑 Display access URLs and credentials"
+  echo -e "  ${GREEN}16.${NC} 🔑 Display access URLs and credentials"
   echo -e "  ${GREEN}0.${NC} 👋 Exit"
   echo
 }
@@ -55,9 +58,8 @@ run_command() {
 # Display the initial menu
 display_menu
 
-# Wait for user input
-while true; do
-  read -p "Enter your choice [0-13]: " choice
+# Wait for user input  while true; do
+  read -p "Enter your choice [0-16]: " choice
   case $choice in
     0)
       echo -e "${BLUE}👋 Exiting. Goodbye!${NC}"
@@ -100,6 +102,15 @@ while true; do
       run_command "docker logs grafana"
       ;;
     13)
+      run_command "docker logs ubuntu"
+      ;;
+    14)
+      run_command "docker logs nginx"
+      ;;
+    15)
+      run_command "docker logs nginx-exporter"
+      ;;
+    16)
       echo -e "${BOLD}${BLUE}=== 🔐 Access Information ===${NC}"
       echo -e "${BOLD}📈 Prometheus:${NC}"
       echo -e "  🔗 URL: http://localhost:9090"
@@ -119,13 +130,22 @@ while true; do
       echo -e "${BOLD}📡 MySQL Exporter:${NC}"
       echo -e "  🔗 URL: http://localhost:9104/metrics"
       echo
+      echo -e "${BOLD}🖥️ Ubuntu:${NC}"
+      echo -e "  🔗 Node Exporter URL: http://localhost:9101/metrics"
+      echo
+      echo -e "${BOLD}🌐 Nginx:${NC}"
+      echo -e "  🔗 URL: http://localhost:8080"
+      echo
+      echo -e "${BOLD}📊 Nginx Exporter:${NC}"
+      echo -e "  🔗 URL: http://localhost:9113/metrics"
+      echo
       echo -e "Press Enter to continue..."
       read
       clear
       display_menu
       ;;
     *)
-      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 13.${NC}"
+      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 16.${NC}"
       ;;
   esac
 done

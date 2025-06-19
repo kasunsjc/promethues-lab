@@ -125,6 +125,24 @@ grafana_logs() {
     docker logs grafana
 }
 
+# View Ubuntu logs
+ubuntu_logs() {
+    echo "📜 Viewing Ubuntu logs:"
+    docker logs ubuntu
+}
+
+# View Nginx logs
+nginx_logs() {
+    echo "📜 Viewing Nginx logs:"
+    docker logs nginx
+}
+
+# View Nginx Exporter logs
+nginx_exporter_logs() {
+    echo "📜 Viewing Nginx Exporter logs:"
+    docker logs nginx-exporter
+}
+
 # ---------------------
 # 🔐 Access Information
 # ---------------------
@@ -149,6 +167,15 @@ show_access() {
     echo
     echo "📡 MySQL Exporter:"
     echo "  🔗 URL: http://localhost:9104/metrics"
+    echo
+    echo "🖥️ Ubuntu:"
+    echo "  🔗 Node Exporter URL: http://localhost:9101/metrics"
+    echo
+    echo "🌐 Nginx:"
+    echo "  🔗 URL: http://localhost:8080"
+    echo
+    echo "📊 Nginx Exporter:"
+    echo "  🔗 URL: http://localhost:9113/metrics"
 }
 
 # Display usage instructions
@@ -171,6 +198,9 @@ usage() {
     echo "  prom-logs     - 📜 View Prometheus logs"
     echo "  exporter-logs - 📜 View MySQL Exporter logs"
     echo "  grafana-logs  - 📜 View Grafana logs"
+    echo "  ubuntu-logs   - 📜 View Ubuntu logs"
+    echo "  nginx-logs    - 📜 View Nginx logs"
+    echo "  nginx-exporter-logs - 📜 View Nginx Exporter logs"
     echo "  access        - 🔑 Show access information"
     echo "  help          - ❓ Show this help message"
     echo
@@ -223,6 +253,15 @@ case "$1" in
         ;;
     grafana-logs)
         grafana_logs
+        ;;
+    ubuntu-logs)
+        ubuntu_logs
+        ;;
+    nginx-logs)
+        nginx_logs
+        ;;
+    nginx-exporter-logs)
+        nginx_exporter_logs
         ;;
     access)
         show_access

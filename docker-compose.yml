@@ -98,7 +98,48 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
     ports:
       - "3000:3000"
-    depends_on:
-      - prometheus
     networks:
       - monitoring
+
+  ubuntu:
+    image: ubuntu:latest
+    container_name: ubuntu
+    restart: unless-stopped
+    command: >
+      bash -c "apt-get update &&
+               apt-get install -y curl wget gnupg2 lsb-release &&
+               wget -q -O - https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz | tar xzf - -C /tmp &&
+               cp /tmp/node_exporter-1.6.1.linux-amd64/node_exporter /usr/local/bin/ &&
+               /usr/local/bin/node_exporter"
+    ports:
+      - "9101:9100" # Node exporter (for monitoring)
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx-html:/usr/share/nginx/html
+      - ./nginx-config:/etc/nginx/conf.d
+    ports:
+      - "8080:80"  # Nginx web server
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx-exporter
+    restart: unless-stopped
+    command: -nginx.scrape-uri=http://nginx:80/stub_status
+    ports:
+      - "9113:9113"  # Nginx exporter metrics port
+    networks:
+      - monitoring
+    depends_on:
+      - nginx

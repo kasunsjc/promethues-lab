@@ -1,6 +1,20 @@
-# 🔭 Prometheus Monitoring Stack 📊
+# 🔭 Prometheus Monitoring Components
 
-This repository contains a Docker Compose setup for monitoring with Prometheus, Node Exporter, MySQL, MySQL Exporter, and Grafana.
+- **📈 Prometheus**: - **📡 MySQL Exporter**: [http://localhost:9104/metrics](http://localhost:9104/metrics)
+- **🖥️ Ubuntu**:
+  - Node Exporter metrics: [http://localhost:9101/metrics](http://localhost:9101/metrics)
+- **🌐 Nginx**: series database for storing metrics
+- **🖥️ Node Exporter**: Provides system metrics like CPU, memory, disk usage
+- **🗄️ MySQL**: Sample database with test data
+- **📡 MySQL Exporter**: Collects metrics from MySQL
+- **📊 Grafana**: Visualizes metrics from Prometheus
+- **🖥️ Ubuntu**: Simulated Ubuntu server with Node Exporter for monitoring
+- **🌐 Nginx**: Web server for serving static content
+- **📊 Nginx Exporter**: Collects metrics from Nginx Monitoring Stack �
+
+This repository contains a Docker Compose setup for monitoring with Prometheus, Node Exporter, MySQL, MySQL Exporter, Grafana, Ubuntu, Nginx, and Nginx Exporter.
+
+This repository contains a Docker Compose setup for monitoring with Prometheus, Node Exporter, MySQL, MySQL Exporter, Grafana, Ubuntu, Nginx, and Nginx Exporter.
 
 ## 🧩 Components
 
@@ -9,6 +23,8 @@ This repository contains a Docker Compose setup for monitoring with Prometheus, 
 - **🗄️ MySQL**: Sample database with test data
 - **📡 MySQL Exporter**: Collects metrics from MySQL
 - **📊 Grafana**: Visualizes metrics from Prometheus
+- **�️ Ubuntu**: Simulated Ubuntu server with Node Exporter for monitoring
+- **🌐 Nginx**: Web server for serving static content
 
 ## 🚀 Quick Start
 
@@ -31,6 +47,12 @@ docker-compose up -d
   - Password: mysqlpassword
   - Database: sample_db
 - **📡 MySQL Exporter**: [http://localhost:9104/metrics](http://localhost:9104/metrics)
+- **�️ Ubuntu**:
+  - Node Exporter metrics: [http://localhost:9101/metrics](http://localhost:9101/metrics)
+- **🌐 Nginx**:
+  - Web server: [http://localhost:8080](http://localhost:8080)
+- **📊 Nginx Exporter**:
+  - Metrics: [http://localhost:9113/metrics](http://localhost:9113/metrics)
 
 ## 🛠️ Helper Scripts
 
@@ -71,6 +93,9 @@ Available commands:
 - `prom-logs` - 📜 View Prometheus logs
 - `exporter-logs` - 📜 View MySQL Exporter logs
 - `grafana-logs` - 📜 View Grafana logs
+- `ubuntu-logs` - 📜 View Ubuntu logs
+- `nginx-logs` - 📜 View Nginx logs
+- `nginx-exporter-logs` - 📜 View Nginx Exporter logs
 - `access` - 🔑 Show access information
 - `help` - ❓ Show help message
 
@@ -96,4 +121,5 @@ A pre-configured MySQL monitoring dashboard is included. You can access it in Gr
 - `mysql-init/`: 🗄️ SQL initialization scripts for MySQL
 - `mysqld-exporter/`: 📡 Configuration for MySQL Exporter
 - `grafana/`: 📊 Grafana provisioning files and dashboards
+- `nginx-html/`: 🌐 HTML files for the Nginx web server
 - `prometheus.yml`: 📈 Prometheus configuration
