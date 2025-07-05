@@ -68,11 +68,11 @@ jobs:
     - name: 🔧 Test Helper Scripts Syntax
       run: |
         echo "🔧 Testing shell script syntax..."
-        bash -n monitoring-helper.sh
-        bash -n commands.sh
-        bash -n alertmanager-helper.sh
-        bash -n k6-load-test.sh
-        bash -n import-k6-dashboard.sh
+        bash -n ./scripts/monitoring-helper.sh
+        bash -n ./scripts/commands.sh
+        bash -n ./scripts/alertmanager-helper.sh
+        bash -n ./scripts/k6-load-test.sh
+        bash -n ./scripts/import-k6-dashboard.sh
         echo "✅ All scripts have valid syntax"
         
     - name: 🐍 Test Python Script Syntax
