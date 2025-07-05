@@ -153,7 +153,7 @@ jobs:
         echo "🧪 Testing alert routing and security notifications..."
         
         # Start webhook receiver for testing
-        python3 webhook_receiver.py &
+        python3 scripts/webhook_receiver.py &
         WEBHOOK_PID=$!
         sleep 5
         

@@ -68,15 +68,22 @@ jobs:
     - name: 🔧 Test Helper Scripts Syntax
       run: |
         echo "🔧 Testing shell script syntax..."
-        bash -n ./scripts/monitoring-helper.sh
-        bash -n ./scripts/commands.sh
+        # Test root entry-point scripts
+        bash -n ./monitoring-helper.sh
+        bash -n ./commands.sh
+        # Test scripts in scripts/ directory
         bash -n ./scripts/alertmanager-helper.sh
         bash -n ./scripts/k6-load-test.sh
         bash -n ./scripts/import-k6-dashboard.sh
+        bash -n ./scripts/security-monitoring.sh
+        bash -n ./scripts/performance-analysis.sh
+        bash -n ./scripts/test-network.sh
+        bash -n ./scripts/validate-local.sh
+        bash -n ./scripts/comprehensive-validation.sh
         echo "✅ All scripts have valid syntax"
         
     - name: 🐍 Test Python Script Syntax
       run: |
         echo "🐍 Testing Python script syntax..."
-        python3 -m py_compile webhook_receiver.py
+        python3 -m py_compile scripts/webhook_receiver.py
         echo "✅ Python script syntax is valid"

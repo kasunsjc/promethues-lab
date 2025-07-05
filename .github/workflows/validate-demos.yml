@@ -200,7 +200,7 @@ jobs:
             echo "🚨 Testing alerting system..."
 
             # Start webhook receiver in background
-            python3 webhook_receiver.py &
+            python3 scripts/webhook_receiver.py &
             WEBHOOK_PID=$!
             echo "🔗 Started webhook receiver (PID: $WEBHOOK_PID)"
 

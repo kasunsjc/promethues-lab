@@ -67,7 +67,7 @@ jobs:
     - name: 🔗 Start webhook receiver
       run: |
         echo "🔗 Starting webhook receiver..."
-        python3 webhook_receiver.py > webhook_output.log 2>&1 &
+        python3 scripts/webhook_receiver.py > webhook_output.log 2>&1 &
         echo $! > webhook_pid.txt
         
         # Wait for webhook to start
