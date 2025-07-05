@@ -95,13 +95,23 @@ jobs:
 
         # Check if alert is firing in Prometheus
         prom_alerts=$(curl -s http://localhost:9090/api/v1/alerts)
-        mysql_alert=$(echo "$prom_alerts" | jq '.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")')
-        if [[ -n "$mysql_alert" ]]; then
+        echo "📋 Raw Prometheus API response:"
+        echo "$prom_alerts" | jq '.'
+        
+        # Check if we have any data
+        if [[ $(echo "$prom_alerts" | jq '.data | length') -eq 0 ]]; then
+          echo "⚠️ No alerts found in Prometheus"
+          echo "❌ MySQLDown alert not firing in Prometheus"
+          exit 1
+        fi
+        
+        mysql_alert=$(echo "$prom_alerts" | jq '.data[]? | select(.labels.alertname == "MySQLDown" and .state == "firing")')
+        if [[ -n "$mysql_alert" && "$mysql_alert" != "null" ]]; then
           echo "✅ MySQLDown alert is firing in Prometheus"
         else
           echo "❌ MySQLDown alert not firing in Prometheus"
           echo "📋 All alerts in Prometheus:"
-          echo "$prom_alerts" | jq -r '.data[] | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -5
+          echo "$prom_alerts" | jq -r '.data[]? | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -5
           exit 1
         fi
 
@@ -109,13 +119,23 @@ jobs:
         echo "⏳ Waiting 30 seconds for alert to reach Alertmanager..."
         sleep 30
         am_alerts=$(curl -s http://localhost:9093/api/v2/alerts)
-        am_mysql_alert=$(echo "$am_alerts" | jq '.[] | select(.labels.alertname == "MySQLDown")')
-        if [[ -n "$am_mysql_alert" ]]; then
+        echo "📋 Raw Alertmanager API response:"
+        echo "$am_alerts" | jq '.'
+        
+        # Check if we have any alerts
+        if [[ $(echo "$am_alerts" | jq 'length') -eq 0 ]]; then
+          echo "⚠️ No alerts found in Alertmanager"
+          echo "❌ MySQLDown alert not in Alertmanager"
+          exit 1
+        fi
+        
+        am_mysql_alert=$(echo "$am_alerts" | jq '.[]? | select(.labels.alertname == "MySQLDown")')
+        if [[ -n "$am_mysql_alert" && "$am_mysql_alert" != "null" ]]; then
           echo "✅ MySQLDown alert reached Alertmanager"
         else
           echo "❌ MySQLDown alert not in Alertmanager"
           echo "📋 All alerts in Alertmanager:"
-          echo "$am_alerts" | jq -r '.[] | "- \(.labels.alertname // "unknown") (\(.status.state // "unknown"))"' | head -5
+          echo "$am_alerts" | jq -r '.[]? | "- \(.labels.alertname // "unknown") (\(.status.state // "unknown"))"' | head -5
           exit 1
         fi
 
@@ -149,7 +169,7 @@ jobs:
         
         # Check if alert resolved in Prometheus
         mysql_alert=$(curl -s http://localhost:9090/api/v1/alerts)
-        firing_mysql_alerts=$(echo "$mysql_alert" | jq '[.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")]')
+        firing_mysql_alerts=$(echo "$mysql_alert" | jq '[.data[]? | select(.labels.alertname == "MySQLDown" and .state == "firing")]')
         firing_count=$(echo "$firing_mysql_alerts" | jq 'length')
         
         if [[ "$firing_count" -eq 0 ]]; then
@@ -180,17 +200,17 @@ jobs:
         
         # Check alert in Prometheus
         prom_alerts=$(curl -s http://localhost:9090/api/v1/alerts)
-        instance_alerts=$(echo "$prom_alerts" | jq '[.data[] | select(.labels.alertname == "InstanceDown" and .state == "firing")]')
+        instance_alerts=$(echo "$prom_alerts" | jq '[.data[]? | select(.labels.alertname == "InstanceDown" and .state == "firing")]')
         instance_count=$(echo "$instance_alerts" | jq 'length')
         
         if [[ "$instance_count" -gt 0 ]]; then
           echo "✅ InstanceDown alert is firing ($instance_count alerts)"
           echo "📋 Alert details:"
-          echo "$instance_alerts" | jq -r '.[] | "- Instance: \(.labels.instance // "unknown"), Job: \(.labels.job // "unknown")"'
+          echo "$instance_alerts" | jq -r '.[]? | "- Instance: \(.labels.instance // "unknown"), Job: \(.labels.job // "unknown")"'
         else
           echo "❌ InstanceDown alert not firing"
           echo "📋 All alerts in Prometheus:"
-          echo "$prom_alerts" | jq -r '.data[] | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -5
+          echo "$prom_alerts" | jq -r '.data[]? | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -5
           exit 1
         fi
         
@@ -208,12 +228,12 @@ jobs:
         
         echo "### 📈 Prometheus Alerts Status" >> alert_test_results.md
         prom_alerts=$(curl -s http://localhost:9090/api/v1/alerts)
-        echo "$prom_alerts" | jq -r '.data[] | "- **\(.labels.alertname // "Unknown")**: \(.state // "unknown") (Instance: \(.labels.instance // "N/A"))"' >> alert_test_results.md
+        echo "$prom_alerts" | jq -r '.data[]? | "- **\(.labels.alertname // "Unknown")**: \(.state // "unknown") (Instance: \(.labels.instance // "N/A"))"' >> alert_test_results.md
         
         echo "" >> alert_test_results.md
         echo "### 🚨 Alertmanager Alerts" >> alert_test_results.md
         am_alerts=$(curl -s http://localhost:9093/api/v2/alerts)
-        echo "$am_alerts" | jq -r '.[] | "- **\(.labels.alertname // "Unknown")**: \(.status.state // "unknown")"' >> alert_test_results.md
+        echo "$am_alerts" | jq -r '.[]? | "- **\(.labels.alertname // "Unknown")**: \(.status.state // "unknown")"' >> alert_test_results.md
         
         echo "" >> alert_test_results.md
         echo "### 🔗 Webhook Activity" >> alert_test_results.md
