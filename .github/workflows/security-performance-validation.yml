@@ -88,10 +88,10 @@ jobs:
         echo "🔒 Running security monitoring checks..."
         
         # Make script executable
-        chmod +x ./security-monitoring.sh
+        chmod +x ./scripts/security-monitoring.sh
         
         # Run security checks
-        ./security-monitoring.sh check
+        ./scripts/security-monitoring.sh check
         
         # Check for critical security alerts
         critical_alerts=$(curl -s 'http://localhost:9090/api/v1/alerts' | jq '.data[] | select(.labels.severity == "critical" and .labels.category == "security")' | jq -s length)
@@ -109,10 +109,10 @@ jobs:
         echo "📊 Running performance analysis..."
         
         # Make script executable
-        chmod +x ./performance-analysis.sh
+        chmod +x ./scripts/performance-analysis.sh
         
         # Run performance analysis
-        ./performance-analysis.sh analyze
+        ./scripts/performance-analysis.sh analyze
         
         # Check for performance alerts
         perf_alerts=$(curl -s 'http://localhost:9090/api/v1/alerts' | jq '.data[] | select(.labels.category == "performance")' | jq -s length)
@@ -204,7 +204,7 @@ jobs:
         echo "📊 Generating comprehensive security and performance report..."
         
         # Run security report generation
-        ./security-monitoring.sh report
+        ./scripts/security-monitoring.sh report
         
         # Create combined report
         REPORT_FILE="comprehensive_report_$(date +%Y%m%d_%H%M%S).md"

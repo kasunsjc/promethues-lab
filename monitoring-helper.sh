@@ -188,7 +188,7 @@ while true; do
       esac
       ;;
     20)
-      run_command "./import-k6-dashboard.sh"
+      run_command "./scripts/import-k6-dashboard.sh"
       ;;
     *)
       echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 20.${NC}"
