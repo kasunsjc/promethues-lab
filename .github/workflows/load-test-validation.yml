@@ -1,0 +1,208 @@
+name: 🔥 Load Test Validation
+
+on:
+  schedule:
+    # Run load tests weekly on Sundays at 4 AM UTC
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      test_intensity:
+        description: 'Test intensity (light/medium/heavy)'
+        required: false
+        default: 'light'
+        type: choice
+        options:
+        - light
+        - medium
+        - heavy
+
+jobs:
+  load-test-validation:
+    name: 🔥 Validate Load Testing Setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      
+    - name: 📦 Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq curl
+        
+    - name: 🚀 Start monitoring stack
+      run: |
+        echo "🚀 Starting monitoring stack..."
+        docker-compose up -d
+        
+        echo "⏳ Waiting for services..."
+        sleep 60
+        
+    - name: 🔍 Verify k6 and InfluxDB setup
+      run: |
+        echo "🔍 Checking InfluxDB..."
+        for i in {1..10}; do
+          if curl -sf http://localhost:8086/ping; then
+            echo "✅ InfluxDB is ready"
+            break
+          fi
+          echo "⏳ Waiting for InfluxDB... ($i/10)"
+          sleep 10
+        done
+        
+        # Check if k6 database exists
+        if curl -s http://localhost:8086/query?q=SHOW%20DATABASES | grep -q k6; then
+          echo "✅ k6 database exists in InfluxDB"
+        else
+          echo "⚠️ k6 database not found, will be created during test"
+        fi
+        
+    - name: 🌐 Verify Nginx is serving content
+      run: |
+        echo "🌐 Testing Nginx endpoints..."
+        
+        # Test main page
+        if curl -sf http://localhost:8080/; then
+          echo "✅ Nginx main page accessible"
+        else
+          echo "❌ Nginx main page not accessible"
+          exit 1
+        fi
+        
+        # Test heavy page
+        if curl -sf http://localhost:8080/heavy.html; then
+          echo "✅ Nginx heavy page accessible"
+        else
+          echo "❌ Nginx heavy page not accessible"
+          exit 1
+        fi
+        
+        # Test nginx metrics
+        if curl -sf http://localhost:9113/metrics; then
+          echo "✅ Nginx exporter metrics accessible"
+        else
+          echo "❌ Nginx exporter metrics not accessible"
+          exit 1
+        fi
+        
+    - name: 🔥 Run basic k6 load test
+      run: |
+        echo "🔥 Running basic k6 load test..."
+        
+        # Run the basic nginx load test
+        docker run --rm --network prometheus_monitoring \
+          -v "$(pwd)/k6-scripts:/scripts" \
+          -e K6_OUT=influxdb=http://influxdb:8086/k6 \
+          grafana/k6:latest run /scripts/nginx-load-test.js
+          
+        echo "✅ Basic load test completed"
+        
+    - name: 🔥 Run advanced k6 load test
+      run: |
+        echo "🔥 Running advanced k6 load test..."
+        
+        # Run the advanced nginx load test
+        docker run --rm --network prometheus_monitoring \
+          -v "$(pwd)/k6-scripts:/scripts" \
+          -e K6_OUT=influxdb=http://influxdb:8086/k6 \
+          grafana/k6:latest run /scripts/nginx-advanced-test.js
+          
+        echo "✅ Advanced load test completed"
+        
+    - name: 📊 Verify test results in InfluxDB
+      run: |
+        echo "📊 Checking test results in InfluxDB..."
+        
+        # Wait for data to be written
+        sleep 10
+        
+        # Check if test data exists
+        measurements=$(curl -s "http://localhost:8086/query?db=k6&q=SHOW%20MEASUREMENTS" | jq -r '.results[0].series[0].values[][]' 2>/dev/null || echo "")
+        
+        if [[ -n "$measurements" ]]; then
+          echo "✅ Test data found in InfluxDB:"
+          echo "$measurements"
+        else
+          echo "⚠️ No test data found in InfluxDB"
+        fi
+        
+        # Check for specific k6 metrics
+        http_reqs=$(curl -s "http://localhost:8086/query?db=k6&q=SELECT%20COUNT(*)%20FROM%20http_reqs" 2>/dev/null || echo "")
+        if [[ -n "$http_reqs" ]]; then
+          echo "✅ HTTP request metrics recorded"
+        else
+          echo "⚠️ HTTP request metrics not found"
+        fi
+        
+    - name: 📈 Verify load test impact on monitoring
+      run: |
+        echo "📈 Checking monitoring metrics during load test..."
+        
+        # Check nginx metrics increased
+        nginx_requests=$(curl -s 'http://localhost:9090/api/v1/query?query=nginx_http_requests_total' | jq '.data.result[0].value[1]' 2>/dev/null || echo "0")
+        
+        if [[ "$nginx_requests" != "0" && "$nginx_requests" != "null" ]]; then
+          echo "✅ Nginx request metrics updated: $nginx_requests"
+        else
+          echo "⚠️ Nginx metrics not updated"
+        fi
+        
+        # Check if any rate-based alerts might trigger
+        nginx_rate=$(curl -s 'http://localhost:9090/api/v1/query?query=rate(nginx_http_requests_total[5m])' | jq '.data.result[0].value[1]' 2>/dev/null || echo "0")
+        echo "📊 Current nginx request rate: $nginx_rate requests/sec"
+        
+    - name: 🚨 Check for load-induced alerts
+      run: |
+        echo "🚨 Checking if load tests triggered any alerts..."
+        
+        # Check for high request rate alerts
+        alerts=$(curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | select(.state == "firing")')
+        
+        if [[ -n "$alerts" ]]; then
+          echo "🚨 Alerts triggered during load test:"
+          echo "$alerts" | jq '{alertname: .labels.alertname, state: .state}'
+        else
+          echo "✅ No alerts triggered by load test"
+        fi
+        
+    - name: 📊 Generate load test report
+      if: always()
+      run: |
+        echo "📊 Generating load test report..."
+        
+        echo "## 🔥 Load Test Validation Report" > load_test_report.md
+        echo "" >> load_test_report.md
+        echo "**Test Date:** $(date)" >> load_test_report.md
+        echo "" >> load_test_report.md
+        
+        echo "### 📈 Test Metrics" >> load_test_report.md
+        
+        # InfluxDB measurements
+        echo "#### InfluxDB Measurements" >> load_test_report.md
+        curl -s "http://localhost:8086/query?db=k6&q=SHOW%20MEASUREMENTS" | jq '.results[0].series[0].values[][]' >> load_test_report.md 2>/dev/null || echo "No data" >> load_test_report.md
+        
+        echo "" >> load_test_report.md
+        echo "#### Nginx Metrics" >> load_test_report.md
+        curl -s 'http://localhost:9090/api/v1/query?query=nginx_http_requests_total' | jq '.data.result[] | {instance: .metric.instance, requests: .value[1]}' >> load_test_report.md 2>/dev/null || echo "No data" >> load_test_report.md
+        
+        echo "" >> load_test_report.md
+        echo "#### Active Alerts" >> load_test_report.md
+        curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | {alertname: .labels.alertname, state: .state}' >> load_test_report.md 2>/dev/null || echo "No alerts" >> load_test_report.md
+        
+        cat load_test_report.md
+        
+    - name: 🧹 Cleanup
+      if: always()
+      run: |
+        echo "🧹 Cleaning up..."
+        docker-compose down -v
+        echo "✅ Cleanup completed"
+        
+    - name: 📤 Upload test report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: load-test-report
+        path: load_test_report.md
+        retention-days: 30

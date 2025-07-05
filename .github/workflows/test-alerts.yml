@@ -1,0 +1,234 @@
+name: 🚨 Alert System Test
+
+on:
+  schedule:
+    # Test alerting system daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      test_duration:
+        description: 'Test duration in minutes'
+        required: false
+        default: '5'
+        type: string
+
+jobs:
+  test-alerting:
+    name: 🚨 Test Complete Alerting Pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: 📦 Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq curl netcat-openbsd
+        
+    - name: 🚀 Start monitoring stack
+      run: |
+        echo "🚀 Starting monitoring stack..."
+        docker-compose up -d
+        
+        echo "⏳ Waiting for services to initialize..."
+        sleep 90
+        
+    - name: 🔍 Verify stack is healthy
+      run: |
+        echo "🔍 Checking service health..."
+        
+        # Check Prometheus
+        for i in {1..10}; do
+          if curl -sf http://localhost:9090/-/ready; then
+            echo "✅ Prometheus is ready"
+            break
+          fi
+          echo "⏳ Waiting for Prometheus... ($i/10)"
+          sleep 10
+        done
+        
+        # Check Alertmanager
+        for i in {1..10}; do
+          if curl -sf http://localhost:9093/-/ready; then
+            echo "✅ Alertmanager is ready"
+            break
+          fi
+          echo "⏳ Waiting for Alertmanager... ($i/10)"
+          sleep 10
+        done
+        
+    - name: 🔗 Start webhook receiver
+      run: |
+        echo "🔗 Starting webhook receiver..."
+        python3 webhook_receiver.py > webhook_output.log 2>&1 &
+        echo $! > webhook_pid.txt
+        
+        # Wait for webhook to start
+        sleep 5
+        
+        # Test webhook is responding
+        if nc -z localhost 5001; then
+          echo "✅ Webhook receiver is listening on port 5001"
+        else
+          echo "❌ Webhook receiver failed to start"
+          exit 1
+        fi
+        
+    - name: 🚨 Test MySQL Down Alert
+      run: |
+        echo "🚨 Testing MySQL Down alert..."
+        
+        # Stop MySQL service
+        echo "🛑 Stopping MySQL service..."
+        docker-compose stop mysql
+        
+        # Wait for alert to trigger (1 minute + buffer)
+        echo "⏳ Waiting 90 seconds for MySQLDown alert..."
+        sleep 90
+        
+        # Check if alert is firing in Prometheus
+        mysql_alert=$(curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")')
+        if [[ -n "$mysql_alert" ]]; then
+          echo "✅ MySQLDown alert is firing in Prometheus"
+        else
+          echo "❌ MySQLDown alert not firing in Prometheus"
+          curl -s http://localhost:9090/api/v1/alerts | jq '.'
+          exit 1
+        fi
+        
+        # Check if alert reached Alertmanager
+        sleep 30
+        am_mysql_alert=$(curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | select(.labels.alertname == "MySQLDown")')
+        if [[ -n "$am_mysql_alert" ]]; then
+          echo "✅ MySQLDown alert reached Alertmanager"
+        else
+          echo "❌ MySQLDown alert not in Alertmanager"
+          curl -s http://localhost:9093/api/v1/alerts | jq '.'
+          exit 1
+        fi
+        
+        # Check webhook received the alert
+        if grep -q "MySQLDown" webhook_output.log; then
+          echo "✅ Webhook received MySQLDown alert"
+          echo "📋 Webhook log excerpt:"
+          grep -A 5 -B 5 "MySQLDown" webhook_output.log | tail -20
+        else
+          echo "❌ Webhook did not receive MySQLDown alert"
+          echo "📋 Full webhook log:"
+          cat webhook_output.log
+          exit 1
+        fi
+        
+    - name: 🔄 Test Alert Resolution
+      run: |
+        echo "🔄 Testing alert resolution..."
+        
+        # Restart MySQL
+        echo "🔄 Restarting MySQL service..."
+        docker-compose start mysql
+        
+        # Wait for service to be healthy
+        echo "⏳ Waiting for MySQL to be healthy..."
+        sleep 60
+        
+        # Wait for alert to resolve
+        echo "⏳ Waiting for alert to resolve..."
+        sleep 60
+        
+        # Check if alert resolved in Prometheus
+        mysql_alert=$(curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")')
+        if [[ -z "$mysql_alert" ]]; then
+          echo "✅ MySQLDown alert resolved in Prometheus"
+        else
+          echo "⚠️ MySQLDown alert still firing in Prometheus"
+          echo "$mysql_alert"
+        fi
+        
+        # Check webhook received resolution
+        if grep -q "resolved" webhook_output.log; then
+          echo "✅ Webhook received alert resolution"
+        else
+          echo "⚠️ Webhook did not receive resolution notification"
+        fi
+        
+    - name: 🚨 Test Instance Down Alert
+      run: |
+        echo "🚨 Testing InstanceDown alert..."
+        
+        # Stop node-exporter to trigger InstanceDown
+        echo "🛑 Stopping node-exporter..."
+        docker-compose stop node-exporter
+        
+        # Wait for alert
+        echo "⏳ Waiting 90 seconds for InstanceDown alert..."
+        sleep 90
+        
+        # Check alert in Prometheus
+        instance_alert=$(curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | select(.labels.alertname == "InstanceDown" and .state == "firing")')
+        if [[ -n "$instance_alert" ]]; then
+          echo "✅ InstanceDown alert is firing"
+          echo "📋 Alert details:"
+          echo "$instance_alert" | jq '{alertname: .labels.alertname, instance: .labels.instance}'
+        else
+          echo "❌ InstanceDown alert not firing"
+          exit 1
+        fi
+        
+        # Restart node-exporter
+        echo "🔄 Restarting node-exporter..."
+        docker-compose start node-exporter
+        
+    - name: 📊 Generate Summary Report
+      if: always()
+      run: |
+        echo "📊 Generating alert test summary..."
+        
+        echo "## 🚨 Alert System Test Results" > alert_test_results.md
+        echo "" >> alert_test_results.md
+        
+        echo "### 📈 Prometheus Alerts Status" >> alert_test_results.md
+        curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | {alertname: .labels.alertname, state: .state, instance: .labels.instance}' >> alert_test_results.md
+        
+        echo "" >> alert_test_results.md
+        echo "### 🚨 Alertmanager Alerts" >> alert_test_results.md
+        curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | {alertname: .labels.alertname, status: .status.state}' >> alert_test_results.md
+        
+        echo "" >> alert_test_results.md
+        echo "### 🔗 Webhook Activity" >> alert_test_results.md
+        echo '```' >> alert_test_results.md
+        tail -50 webhook_output.log >> alert_test_results.md
+        echo '```' >> alert_test_results.md
+        
+        cat alert_test_results.md
+        
+    - name: 🧹 Cleanup
+      if: always()
+      run: |
+        echo "🧹 Cleaning up..."
+        
+        # Stop webhook receiver
+        if [[ -f webhook_pid.txt ]]; then
+          kill $(cat webhook_pid.txt) || true
+        fi
+        
+        # Stop all services
+        docker-compose down -v
+        
+        echo "✅ Cleanup completed"
+        
+    - name: 📤 Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: alert-test-results
+        path: |
+          alert_test_results.md
+          webhook_output.log
+        retention-days: 7

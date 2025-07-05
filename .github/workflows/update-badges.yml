@@ -1,0 +1,57 @@
+name: 🏷️ Update Status Badges
+
+on:
+  workflow_run:
+    workflows: 
+      - "🔭 Validate Prometheus Monitoring Stack"
+      - "🚀 Quick Validation"
+      - "🚨 Alert System Test"
+      - "🔥 Load Test Validation"
+    types:
+      - completed
+
+jobs:
+  update-badges:
+    name: 🏷️ Update README Badges
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 🏷️ Update validation badge
+      run: |
+        echo "🏷️ Validation workflow completed"
+        # Note: Badges will be automatically updated by GitHub based on workflow status
+        # This job serves as a placeholder for any badge-related automation
+        
+    - name: 📊 Create status summary
+      run: |
+        echo "📊 Creating status summary..."
+        
+        echo "# 🔭 Monitoring Stack Status" > STATUS.md
+        echo "" >> STATUS.md
+        echo "Last updated: $(date)" >> STATUS.md
+        echo "" >> STATUS.md
+        echo "## 🚀 Workflow Status" >> STATUS.md
+        echo "" >> STATUS.md
+        echo "- Configuration Validation: ![Validation](https://github.com/${{ github.repository }}/actions/workflows/quick-validate.yml/badge.svg)" >> STATUS.md
+        echo "- Full Stack Test: ![Stack Test](https://github.com/${{ github.repository }}/actions/workflows/validate-demos.yml/badge.svg)" >> STATUS.md
+        echo "- Alert System Test: ![Alert Test](https://github.com/${{ github.repository }}/actions/workflows/test-alerts.yml/badge.svg)" >> STATUS.md
+        echo "- Load Test Validation: ![Load Test](https://github.com/${{ github.repository }}/actions/workflows/load-test-validation.yml/badge.svg)" >> STATUS.md
+        echo "" >> STATUS.md
+        echo "## 📊 Components" >> STATUS.md
+        echo "" >> STATUS.md
+        echo "- ✅ Prometheus" >> STATUS.md
+        echo "- ✅ Alertmanager" >> STATUS.md
+        echo "- ✅ Grafana" >> STATUS.md
+        echo "- ✅ MySQL + Exporter" >> STATUS.md
+        echo "- ✅ Nginx + Exporter" >> STATUS.md
+        echo "- ✅ Node Exporter" >> STATUS.md
+        echo "- ✅ k6 Load Testing" >> STATUS.md
+        echo "- ✅ InfluxDB" >> STATUS.md
+        
+        cat STATUS.md

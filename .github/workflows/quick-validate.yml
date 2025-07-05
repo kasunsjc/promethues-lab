@@ -1,0 +1,66 @@
+name: 🚀 Quick Validation
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  quick-validate:
+    name: ⚡ Quick Configuration Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      
+    - name: ✅ Validate Docker Compose
+      run: |
+        echo "🔍 Validating docker-compose.yml..."
+        docker-compose config --quiet
+        echo "✅ Docker Compose is valid"
+        
+    - name: ✅ Validate Prometheus Config
+      run: |
+        echo "🔍 Validating Prometheus configuration..."
+        docker run --rm -v "$(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml" \
+          prom/prometheus:latest \
+          promtool check config /etc/prometheus/prometheus.yml
+        echo "✅ Prometheus config is valid"
+        
+    - name: ✅ Validate Alert Rules
+      run: |
+        echo "🔍 Validating alert rules..."
+        docker run --rm -v "$(pwd)/alert_rules.yml:/etc/prometheus/alert_rules.yml" \
+          prom/prometheus:latest \
+          promtool check rules /etc/prometheus/alert_rules.yml
+        echo "✅ Alert rules are valid"
+        
+    - name: ✅ Validate Alertmanager Config
+      run: |
+        echo "🔍 Validating Alertmanager configuration..."
+        docker run --rm -v "$(pwd)/alertmanager.yml:/etc/alertmanager/alertmanager.yml" \
+          prom/alertmanager:latest \
+          amtool check-config /etc/alertmanager/alertmanager.yml
+        echo "✅ Alertmanager config is valid"
+        
+    - name: 🔧 Test Helper Scripts Syntax
+      run: |
+        echo "🔧 Testing shell script syntax..."
+        bash -n monitoring-helper.sh
+        bash -n commands.sh
+        bash -n alertmanager-helper.sh
+        bash -n k6-load-test.sh
+        bash -n import-k6-dashboard.sh
+        echo "✅ All scripts have valid syntax"
+        
+    - name: 🐍 Test Python Script Syntax
+      run: |
+        echo "🐍 Testing Python script syntax..."
+        python3 -m py_compile webhook_receiver.py
+        echo "✅ Python script syntax is valid"
