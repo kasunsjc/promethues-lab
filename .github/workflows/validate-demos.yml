@@ -197,51 +197,64 @@ jobs:
 
       - name: 🚨 Test alerting system
         run: |
-          echo "🚨 Testing alerting system..."
+            echo "🚨 Testing alerting system..."
 
-          # Start webhook receiver in background
-          python3 webhook_receiver.py &
-          WEBHOOK_PID=$!
-          echo "🔗 Started webhook receiver (PID: $WEBHOOK_PID)"
+            # Start webhook receiver in background
+            python3 webhook_receiver.py &
+            WEBHOOK_PID=$!
+            echo "🔗 Started webhook receiver (PID: $WEBHOOK_PID)"
 
-          # Wait for webhook receiver to start
-          sleep 5
+            # Wait for webhook receiver to start
+            sleep 5
 
-          # Stop Ubuntu service to trigger alert
-          echo "🛑 Stopping Ubuntu service to trigger alert..."
-          docker compose stop ubuntu
+            # Stop Ubuntu service to trigger alert
+            echo "🛑 Stopping Ubuntu service to trigger alert..."
+            docker compose stop ubuntu
 
-          # Wait for alert to fire (rules have 1m for condition)
-          echo "⏳ Waiting for alert to trigger..."
-          sleep 90
+            # Wait for alert to fire (rules have 1m for condition)
+            echo "⏳ Waiting for alert to trigger..."
+            sleep 90
 
-          # Check if alert is firing in Prometheus
-          echo "🔍 Checking for firing alerts in Prometheus..."
-          alerts=$(curl -s http://localhost:9090/api/v1/alerts | jq '[.data[] | select(.state == "firing")]')
-          if [[ $(echo "$alerts" | jq 'length') -gt 0 ]]; then
-            echo "✅ Alerts are firing in Prometheus"
-            echo "$alerts" | jq '.[].labels.alertname'
-          else
-            echo "❌ No alerts firing in Prometheus"
+            # Check if alert is firing in Prometheus
+            # Additional check: Verify alert rules are loaded
+            echo "🔍 Checking if alert rules are loaded in Prometheus..."
+            rules=$(curl -s http://localhost:9090/api/v1/rules | jq '.data.groups // []')
+            rule_count=$(echo "$rules" | jq '[.[] | .rules[]] | length')
+
+            if [[ "$rule_count" -gt 0 ]]; then
+            echo "✅ Found $rule_count alert rules loaded"
+            
+            # Check for InstanceDown rule specifically
+            instance_down_rules=$(echo "$rules" | jq '[.[] | .rules[] | select(.name == "InstanceDown")]')
+            if [[ $(echo "$instance_down_rules" | jq 'length') -gt 0 ]]; then
+                echo "✅ InstanceDown rule is loaded"
+            else
+                echo "❌ InstanceDown rule not found"
+                echo "📋 Available rules:"
+                echo "$rules" | jq -r '.[] | .rules[] | "- \(.name)"' | head -10
+            fi
+            else
+            echo "❌ No alert rules loaded in Prometheus"
             exit 1
-          fi
-          # Check if alert reached Alertmanager
-          echo "🔍 Checking alerts in Alertmanager..."
-          sleep 30
-          am_alerts=$(curl -s http://localhost:9093/api/v2/alerts | jq '.data[] | select(.status.state == "active")')
-          if [[ -n "$am_alerts" ]]; then
-            echo "✅ Alerts reached Alertmanager"
-          else
-            echo "❌ No alerts in Alertmanager"
-            exit 1
-          fi
+            fi
 
-          # Stop webhook receiver
-          kill $WEBHOOK_PID || true
+            # Check if alert reached Alertmanager
+            echo "🔍 Checking alerts in Alertmanager..."
+            sleep 30
+            am_alerts=$(curl -s http://localhost:9093/api/v2/alerts | jq '.[] | select(.status.state == "active")')
+            if [[ -n "$am_alerts" ]]; then
+                echo "✅ Alerts reached Alertmanager"
+            else
+                echo "❌ No alerts in Alertmanager"
+                exit 1
+            fi
 
-          # Restart Ubuntu service
-          echo "🔄 Restarting Ubuntu service..."
-          docker compose start ubuntu
+            # Stop webhook receiver
+            kill $WEBHOOK_PID || true
+
+            # Restart Ubuntu service
+            echo "🔄 Restarting Ubuntu service..."
+            docker compose start ubuntu
 
       - name: 🔥 Test k6 load testing
         run: |
