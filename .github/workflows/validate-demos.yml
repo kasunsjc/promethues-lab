@@ -2,369 +2,378 @@ name: 🔭 Validate Prometheus Monitoring Stack
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
   schedule:
     # Run daily at 2 AM UTC to catch any issues
-    - cron: '0 2 * * *'
+    - cron: "0 2 * * *"
 
 env:
   COMPOSE_FILE: docker-compose.yml
   HEALTH_CHECK_TIMEOUT: 120
   ALERT_TEST_TIMEOUT: 180
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   validate-configs:
     name: 📋 Validate Configuration Files
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🐍 Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-        
-    - name: 📦 Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y jq curl
-        
-    - name: ✅ Validate Docker Compose file
-      run: |
-        echo "🔍 Validating docker-compose.yml..."
-        docker compose config --quiet
-        echo "✅ Docker Compose configuration is valid"
-        
-    - name: ✅ Validate Prometheus configuration
-      run: |
-        echo "🔍 Validating prometheus.yml..."
-        docker run --rm \
-          --entrypoint="" \
-          -v "$(pwd)/config:/etc/prometheus:ro" \
-          prom/prometheus:latest \
-          promtool check config /etc/prometheus/prometheus.yml
-        echo "✅ Prometheus configuration is valid"
-        
-    - name: ✅ Validate Alert Rules
-      run: |
-        echo "🔍 Validating alert_rules.yml..."
-        docker run --rm \
-          --entrypoint="" \
-          -v "$(pwd)/config:/etc/prometheus:ro" \
-          prom/prometheus:latest \
-          promtool check rules /etc/prometheus/alert_rules.yml
-        
-        # Also validate security rules if they exist
-        if [[ -f config/security_rules.yml ]]; then
-          echo "🔍 Validating security_rules.yml..."
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: 📦 Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: ✅ Validate Docker Compose file
+        run: |
+          echo "🔍 Validating docker-compose.yml..."
+          docker compose config --quiet
+          echo "✅ Docker Compose configuration is valid"
+
+      - name: ✅ Validate Prometheus configuration
+        run: |
+          echo "🔍 Validating prometheus.yml..."
           docker run --rm \
             --entrypoint="" \
             -v "$(pwd)/config:/etc/prometheus:ro" \
             prom/prometheus:latest \
-            promtool check rules /etc/prometheus/security_rules.yml
-        fi
-        echo "✅ Alert rules are valid"
-        
-    - name: ✅ Validate Alertmanager configuration
-      run: |
-        echo "🔍 Validating alertmanager.yml..."
-        docker run --rm \
-          --entrypoint="" \
-          -v "$(pwd)/config:/etc/alertmanager:ro" \
-          prom/alertmanager:latest \
-          amtool check-config /etc/alertmanager/alertmanager.yml
-        echo "✅ Alertmanager configuration is valid"
+            promtool check config /etc/prometheus/prometheus.yml
+          echo "✅ Prometheus configuration is valid"
+
+      - name: ✅ Validate Alert Rules
+        run: |
+          echo "🔍 Validating alert_rules.yml..."
+          docker run --rm \
+            --entrypoint="" \
+            -v "$(pwd)/config:/etc/prometheus:ro" \
+            prom/prometheus:latest \
+            promtool check rules /etc/prometheus/alert_rules.yml
+
+          # Also validate security rules if they exist
+          if [[ -f config/security_rules.yml ]]; then
+            echo "🔍 Validating security_rules.yml..."
+            docker run --rm \
+              --entrypoint="" \
+              -v "$(pwd)/config:/etc/prometheus:ro" \
+              prom/prometheus:latest \
+              promtool check rules /etc/prometheus/security_rules.yml
+          fi
+          echo "✅ Alert rules are valid"
+
+      - name: ✅ Validate Alertmanager configuration
+        run: |
+          echo "🔍 Validating alertmanager.yml..."
+          docker run --rm \
+            --entrypoint="" \
+            -v "$(pwd)/config:/etc/alertmanager:ro" \
+            prom/alertmanager:latest \
+            amtool check-config /etc/alertmanager/alertmanager.yml
+          echo "✅ Alertmanager configuration is valid"
 
   test-stack-deployment:
     name: 🚀 Test Full Stack Deployment
     runs-on: ubuntu-latest
     needs: validate-configs
-    
+
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🐍 Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-        
-    - name: 📦 Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y jq curl
-        
-    - name: 🚀 Start monitoring stack
-      run: |
-        echo "🔄 Starting all services..."
-        docker compose up -d
-        echo "⏳ Waiting for services to be ready..."
-        sleep 60
-        
-    - name: 🔍 Verify services are running
-      run: |
-        echo "📊 Checking service status..."
-        docker compose ps
-        
-        # Check if all expected services are running
-        services=(prometheus alertmanager grafana mysql mysql-exporter node-exporter nginx nginx-exporter influxdb ubuntu)
-        for service in "${services[@]}"; do
-          if docker compose ps "$service" | grep -q "Up"; then
-            echo "✅ $service is running"
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: 📦 Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
+
+      - name: 🚀 Start monitoring stack
+        run: |
+          echo "🔄 Starting all services..."
+          docker compose up -d
+          echo "⏳ Waiting for services to be ready..."
+          sleep 60
+
+      - name: 🔍 Verify services are running
+        run: |
+          echo "📊 Checking service status..."
+          docker compose ps
+
+          # Check if all expected services are running
+          services=(prometheus alertmanager grafana mysql mysql-exporter node-exporter nginx nginx-exporter influxdb ubuntu)
+          for service in "${services[@]}"; do
+            if docker compose ps "$service" | grep -q "Up"; then
+              echo "✅ $service is running"
+            else
+              echo "❌ $service is not running"
+              exit 1
+            fi
+          done
+
+      - name: 🏥 Health checks
+        run: |
+          echo "🔍 Performing health checks..."
+
+          # Wait for services to be fully ready
+          sleep 30
+
+          # Prometheus health check
+          echo "🔍 Checking Prometheus..."
+          for i in {1..12}; do
+            if curl -sf http://localhost:9090/-/ready; then
+              echo "✅ Prometheus is ready"
+              break
+            fi
+            echo "⏳ Waiting for Prometheus... (attempt $i/12)"
+            sleep 10
+          done
+
+          # Alertmanager health check
+          echo "🔍 Checking Alertmanager..."
+          for i in {1..12}; do
+            if curl -sf http://localhost:9093/-/ready; then
+              echo "✅ Alertmanager is ready"
+              break
+            fi
+            echo "⏳ Waiting for Alertmanager... (attempt $i/12)"
+            sleep 10
+          done
+
+          # Grafana health check
+          echo "🔍 Checking Grafana..."
+          for i in {1..12}; do
+            if curl -sf http://localhost:3000/api/health; then
+              echo "✅ Grafana is ready"
+              break
+            fi
+            echo "⏳ Waiting for Grafana... (attempt $i/12)"
+            sleep 10
+          done
+
+      - name: 📊 Verify metrics collection
+        run: |
+          echo "📊 Verifying metrics are being collected..."
+
+          # Check if Prometheus is scraping targets
+          echo "🔍 Checking Prometheus targets..."
+          targets=$(curl -s http://localhost:9090/api/v1/targets | jq -r '.data.activeTargets[] | select(.health == "up") | .labels.job' | sort -u)
+          echo "Active targets: $targets"
+
+          # Verify key metrics exist
+          echo "🔍 Checking key metrics..."
+          metrics=("up" "node_cpu_seconds_total" "mysql_up" "nginx_up")
+          for metric in "${metrics[@]}"; do
+            if curl -s "http://localhost:9090/api/v1/query?query=$metric" | jq -e '.data.result | length > 0' > /dev/null; then
+              echo "✅ Metric '$metric' is available"
+            else
+              echo "⚠️ Metric '$metric' not found"
+            fi
+          done
+
+      - name: 🚨 Test alerting system
+        run: |
+          echo "🚨 Testing alerting system..."
+
+          # Start webhook receiver in background
+          python3 webhook_receiver.py &
+          WEBHOOK_PID=$!
+          echo "🔗 Started webhook receiver (PID: $WEBHOOK_PID)"
+
+          # Wait for webhook receiver to start
+          sleep 5
+
+          # Stop MySQL to trigger alert
+          echo "🛑 Stopping MySQL to trigger alert..."
+          docker compose stop mysql
+
+          # Wait for alert to fire (rules have 1m for condition)
+          echo "⏳ Waiting for alert to trigger..."
+          sleep 90
+
+          # Check if alert is firing in Prometheus
+          echo "🔍 Checking for firing alerts in Prometheus..."
+          alerts=$(curl -s http://localhost:9090/api/v1/alerts | jq '[.data[] | select(.state == "firing")]')
+          if [[ $(echo "$alerts" | jq 'length') -gt 0 ]]; then
+            echo "✅ Alerts are firing in Prometheus"
+            echo "$alerts" | jq '.[].labels.alertname'
           else
-            echo "❌ $service is not running"
+            echo "❌ No alerts firing in Prometheus"
             exit 1
           fi
-        done
-        
-    - name: 🏥 Health checks
-      run: |
-        echo "🔍 Performing health checks..."
-        
-        # Wait for services to be fully ready
-        sleep 30
-        
-        # Prometheus health check
-        echo "🔍 Checking Prometheus..."
-        for i in {1..12}; do
-          if curl -sf http://localhost:9090/-/ready; then
-            echo "✅ Prometheus is ready"
-            break
-          fi
-          echo "⏳ Waiting for Prometheus... (attempt $i/12)"
-          sleep 10
-        done
-        
-        # Alertmanager health check
-        echo "🔍 Checking Alertmanager..."
-        for i in {1..12}; do
-          if curl -sf http://localhost:9093/-/ready; then
-            echo "✅ Alertmanager is ready"
-            break
-          fi
-          echo "⏳ Waiting for Alertmanager... (attempt $i/12)"
-          sleep 10
-        done
-        
-        # Grafana health check
-        echo "🔍 Checking Grafana..."
-        for i in {1..12}; do
-          if curl -sf http://localhost:3000/api/health; then
-            echo "✅ Grafana is ready"
-            break
-          fi
-          echo "⏳ Waiting for Grafana... (attempt $i/12)"
-          sleep 10
-        done
-        
-    - name: 📊 Verify metrics collection
-      run: |
-        echo "📊 Verifying metrics are being collected..."
-        
-        # Check if Prometheus is scraping targets
-        echo "🔍 Checking Prometheus targets..."
-        targets=$(curl -s http://localhost:9090/api/v1/targets | jq -r '.data.activeTargets[] | select(.health == "up") | .labels.job' | sort -u)
-        echo "Active targets: $targets"
-        
-        # Verify key metrics exist
-        echo "🔍 Checking key metrics..."
-        metrics=("up" "node_cpu_seconds_total" "mysql_up" "nginx_up")
-        for metric in "${metrics[@]}"; do
-          if curl -s "http://localhost:9090/api/v1/query?query=$metric" | jq -e '.data.result | length > 0' > /dev/null; then
-            echo "✅ Metric '$metric' is available"
+          # Check if alert reached Alertmanager
+          echo "🔍 Checking alerts in Alertmanager..."
+          sleep 30
+          am_alerts=$(curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | select(.status.state == "active")')
+          if [[ -n "$am_alerts" ]]; then
+            echo "✅ Alerts reached Alertmanager"
           else
-            echo "⚠️ Metric '$metric' not found"
+            echo "❌ No alerts in Alertmanager"
+            exit 1
           fi
-        done
-        
-    - name: 🚨 Test alerting system
-      run: |
-        echo "🚨 Testing alerting system..."
-        
-        # Start webhook receiver in background
-        python3 webhook_receiver.py &
-        WEBHOOK_PID=$!
-        echo "🔗 Started webhook receiver (PID: $WEBHOOK_PID)"
-        
-        # Wait for webhook receiver to start
-        sleep 5
-        
-        # Stop MySQL to trigger alert
-        echo "🛑 Stopping MySQL to trigger alert..."
-        docker compose stop mysql
-        
-        # Wait for alert to fire (rules have 1m for condition)
-        echo "⏳ Waiting for alert to trigger..."
-        sleep 90
-        
-        # Check if alert is firing in Prometheus
-        echo "🔍 Checking for firing alerts in Prometheus..."
-        alerts=$(curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | select(.state == "firing")')
-        if [[ -n "$alerts" ]]; then
-          echo "✅ Alerts are firing in Prometheus"
-          echo "$alerts" | jq '.labels.alertname'
-        else
-          echo "❌ No alerts firing in Prometheus"
-          exit 1
-        fi
-        
-        # Check if alert reached Alertmanager
-        echo "🔍 Checking alerts in Alertmanager..."
-        sleep 30
-        am_alerts=$(curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | select(.status.state == "active")')
-        if [[ -n "$am_alerts" ]]; then
-          echo "✅ Alerts reached Alertmanager"
-        else
-          echo "❌ No alerts in Alertmanager"
-          exit 1
-        fi
-        
-        # Stop webhook receiver
-        kill $WEBHOOK_PID || true
-        
-        # Restart MySQL
-        echo "🔄 Restarting MySQL..."
-        docker compose start mysql
-        
-    - name: 🔥 Test k6 load testing
-      run: |
-        echo "🔥 Testing k6 load testing..."
-        
-        # Wait for nginx to be ready
-        sleep 10
-        
-        # Get the actual network name (may vary based on directory name)
-        NETWORK_NAME=$(docker network ls --format "{{.Name}}" | grep -E "(prometheus|monitoring)" | head -1)
-        echo "📊 Using network: $NETWORK_NAME"
-        
-        # Run a simple k6 test
-        docker run --rm --network "$NETWORK_NAME" \
-          -v "$(pwd)/k6-scripts:/scripts" \
-          grafana/k6:latest run /scripts/nginx-load-test.js
-        
-        echo "✅ k6 load test completed successfully"
-        
-    - name: 📊 Verify Grafana dashboards
-      run: |
-        echo "📊 Verifying Grafana dashboards..."
-        
-        # Wait for Grafana to be fully ready
-        sleep 10
-        
-        # Check if dashboards are accessible
-        # Note: In a real scenario, you might want to use Grafana API with authentication
-        if curl -sf http://localhost:3000/api/search; then
-          echo "✅ Grafana API is accessible"
-        else
-          echo "❌ Grafana API not accessible"
-          exit 1
-        fi
-        
-    - name: 🧹 Cleanup and logs on failure
-      if: failure()
-      run: |
-        echo "💥 Test failed! Collecting logs for debugging..."
-        
-        echo "📊 Service status:"
-        docker compose ps
-        
-        echo "📜 Docker logs:"
-        docker compose logs --tail=50
-        
-        echo "🔍 System resources:"
-        df -h
-        free -h
-        
-    - name: 🛑 Stop services
-      if: always()
-      run: |
-        echo "🛑 Stopping all services..."
-        docker compose down -v
-        echo "✅ Cleanup completed"
-        
-    - name: 🛑 Cleanup
-      if: always()
-      run: |
-        docker compose down -v
+
+          # Stop webhook receiver
+          kill $WEBHOOK_PID || true
+
+          # Restart MySQL
+          echo "🔄 Restarting MySQL..."
+          docker compose start mysql
+
+      - name: 🔥 Test k6 load testing
+        run: |
+          echo "🔥 Testing k6 load testing..."
+
+          # Wait for nginx to be ready
+          sleep 10
+
+          # Get the actual network name (may vary based on directory name)
+          NETWORK_NAME=$(docker network ls --format "{{.Name}}" | grep -E "(prometheus|monitoring)" | head -1)
+          echo "📊 Using network: $NETWORK_NAME"
+
+          # Run a simple k6 test
+          docker run --rm --network "$NETWORK_NAME" \
+            -v "$(pwd)/k6-scripts:/scripts" \
+            grafana/k6:latest run /scripts/nginx-load-test.js
+
+          echo "✅ k6 load test completed successfully"
+
+      - name: 📊 Verify Grafana dashboards
+        run: |
+          echo "📊 Verifying Grafana dashboards..."
+
+          # Wait for Grafana to be fully ready
+          sleep 10
+
+          # Check if dashboards are accessible
+          # Note: In a real scenario, you might want to use Grafana API with authentication
+          if curl -sf http://localhost:3000/api/search; then
+            echo "✅ Grafana API is accessible"
+          else
+            echo "❌ Grafana API not accessible"
+            exit 1
+          fi
+
+      - name: 🧹 Cleanup and logs on failure
+        if: failure()
+        run: |
+          echo "💥 Test failed! Collecting logs for debugging..."
+
+          echo "📊 Service status:"
+          docker compose ps
+
+          echo "📜 Docker logs:"
+          docker compose logs --tail=50
+
+          echo "🔍 System resources:"
+          df -h
+          free -h
+
+      - name: 🛑 Stop services
+        if: always()
+        run: |
+          echo "🛑 Stopping all services..."
+          docker compose down -v
+          echo "✅ Cleanup completed"
+
+      - name: 🛑 Cleanup
+        if: always()
+        run: |
+          docker compose down -v
 
   security-scan:
     name: 🔒 Security Scan
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🔍 Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: '.'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-        
-    - name: 📊 Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: 📊 Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
 
   documentation-check:
     name: 📚 Documentation Check
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🔍 Check README and documentation
-      run: |
-        echo "📚 Checking documentation..."
-        
-        # Check if README exists and has content
-        if [[ -f "README.md" && -s "README.md" ]]; then
-          echo "✅ README.md exists and has content"
-        else
-          echo "❌ README.md missing or empty"
-          exit 1
-        fi
-        
-        # Check if key configuration files are documented
-        required_files=("prometheus.yml" "alertmanager.yml" "alert_rules.yml" "docker-compose.yml")
-        for file in "${required_files[@]}"; do
-          if grep -q "$file" README.md; then
-            echo "✅ $file is documented in README"
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔍 Check README and documentation
+        run: |
+          echo "📚 Checking documentation..."
+
+          # Check if README exists and has content
+          if [[ -f "README.md" && -s "README.md" ]]; then
+            echo "✅ README.md exists and has content"
           else
-            echo "⚠️ $file not mentioned in README"
+            echo "❌ README.md missing or empty"
+            exit 1
           fi
-        done
-        
-        # Check if helper scripts are documented
-        if grep -q "helper" README.md; then
-          echo "✅ Helper scripts are documented"
-        else
-          echo "⚠️ Helper scripts not documented in README"
-        fi
+
+          # Check if key configuration files are documented
+          required_files=("prometheus.yml" "alertmanager.yml" "alert_rules.yml" "docker-compose.yml")
+          for file in "${required_files[@]}"; do
+            if grep -q "$file" README.md; then
+              echo "✅ $file is documented in README"
+            else
+              echo "⚠️ $file not mentioned in README"
+            fi
+          done
+
+          # Check if helper scripts are documented
+          if grep -q "helper" README.md; then
+            echo "✅ Helper scripts are documented"
+          else
+            echo "⚠️ Helper scripts not documented in README"
+          fi
 
   notify-success:
     name: 🎉 Notify Success
     runs-on: ubuntu-latest
-    needs: [validate-configs, test-stack-deployment, security-scan, documentation-check]
+    needs:
+      [
+        validate-configs,
+        test-stack-deployment,
+        security-scan,
+        documentation-check,
+      ]
     if: success()
-    
+
     steps:
-    - name: 🎉 Success notification
-      run: |
-        echo "🎉 All validation checks passed!"
-        echo "✅ Configuration validation: PASSED"
-        echo "✅ Stack deployment test: PASSED"
-        echo "✅ Helper scripts test: PASSED"
-        echo "✅ Security scan: PASSED"
-        echo "✅ Documentation check: PASSED"
-        echo ""
-        echo "🚀 The Prometheus monitoring stack is ready for production!"
+      - name: 🎉 Success notification
+        run: |
+          echo "🎉 All validation checks passed!"
+          echo "✅ Configuration validation: PASSED"
+          echo "✅ Stack deployment test: PASSED"
+          echo "✅ Helper scripts test: PASSED"
+          echo "✅ Security scan: PASSED"
+          echo "✅ Documentation check: PASSED"
+          echo ""
+          echo "🚀 The Prometheus monitoring stack is ready for production!"
