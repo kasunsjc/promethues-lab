@@ -228,7 +228,7 @@ jobs:
           # Check if alert reached Alertmanager
           echo "🔍 Checking alerts in Alertmanager..."
           sleep 30
-          am_alerts=$(curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | select(.status.state == "active")')
+          am_alerts=$(curl -s http://localhost:9093/api/v2/alerts | jq '.data[] | select(.status.state == "active")')
           if [[ -n "$am_alerts" ]]; then
             echo "✅ Alerts reached Alertmanager"
           else
