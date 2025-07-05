@@ -84,36 +84,41 @@ jobs:
     - name: 🚨 Test MySQL Down Alert
       run: |
         echo "🚨 Testing MySQL Down alert..."
-        
+
         # Stop MySQL service
         echo "🛑 Stopping MySQL service..."
         docker compose stop mysql
-        
+
         # Wait for alert to trigger (1 minute + buffer)
         echo "⏳ Waiting 90 seconds for MySQLDown alert..."
         sleep 90
-        
+
         # Check if alert is firing in Prometheus
-        mysql_alert=$(curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")')
+        prom_alerts=$(curl -s http://localhost:9090/api/v1/alerts)
+        mysql_alert=$(echo "$prom_alerts" | jq '.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")')
         if [[ -n "$mysql_alert" ]]; then
           echo "✅ MySQLDown alert is firing in Prometheus"
         else
           echo "❌ MySQLDown alert not firing in Prometheus"
-          curl -s http://localhost:9090/api/v1/alerts | jq '.'
+          echo "📋 All alerts in Prometheus:"
+          echo "$prom_alerts" | jq -r '.data[] | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -5
           exit 1
         fi
-        
-        # Check if alert reached Alertmanager
+
+        # Check if alert reached Alertmanager (wait a bit more for propagation)
+        echo "⏳ Waiting 30 seconds for alert to reach Alertmanager..."
         sleep 30
-        am_mysql_alert=$(curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | select(.labels.alertname == "MySQLDown")')
+        am_alerts=$(curl -s http://localhost:9093/api/v2/alerts)
+        am_mysql_alert=$(echo "$am_alerts" | jq '.[] | select(.labels.alertname == "MySQLDown")')
         if [[ -n "$am_mysql_alert" ]]; then
           echo "✅ MySQLDown alert reached Alertmanager"
         else
           echo "❌ MySQLDown alert not in Alertmanager"
-          curl -s http://localhost:9093/api/v1/alerts | jq '.'
+          echo "📋 All alerts in Alertmanager:"
+          echo "$am_alerts" | jq -r '.[] | "- \(.labels.alertname // "unknown") (\(.status.state // "unknown"))"' | head -5
           exit 1
         fi
-        
+
         # Check webhook received the alert
         if grep -q "MySQLDown" webhook_output.log; then
           echo "✅ Webhook received MySQLDown alert"
@@ -125,7 +130,7 @@ jobs:
           cat webhook_output.log
           exit 1
         fi
-        
+
     - name: 🔄 Test Alert Resolution
       run: |
         echo "🔄 Testing alert resolution..."
@@ -143,12 +148,15 @@ jobs:
         sleep 60
         
         # Check if alert resolved in Prometheus
-        mysql_alert=$(curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")')
-        if [[ -z "$mysql_alert" ]]; then
+        mysql_alert=$(curl -s http://localhost:9090/api/v1/alerts)
+        firing_mysql_alerts=$(echo "$mysql_alert" | jq '[.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")]')
+        firing_count=$(echo "$firing_mysql_alerts" | jq 'length')
+        
+        if [[ "$firing_count" -eq 0 ]]; then
           echo "✅ MySQLDown alert resolved in Prometheus"
         else
           echo "⚠️ MySQLDown alert still firing in Prometheus"
-          echo "$mysql_alert"
+          echo "$firing_mysql_alerts" | jq '.'
         fi
         
         # Check webhook received resolution
@@ -171,13 +179,18 @@ jobs:
         sleep 90
         
         # Check alert in Prometheus
-        instance_alert=$(curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | select(.labels.alertname == "InstanceDown" and .state == "firing")')
-        if [[ -n "$instance_alert" ]]; then
-          echo "✅ InstanceDown alert is firing"
+        prom_alerts=$(curl -s http://localhost:9090/api/v1/alerts)
+        instance_alerts=$(echo "$prom_alerts" | jq '[.data[] | select(.labels.alertname == "InstanceDown" and .state == "firing")]')
+        instance_count=$(echo "$instance_alerts" | jq 'length')
+        
+        if [[ "$instance_count" -gt 0 ]]; then
+          echo "✅ InstanceDown alert is firing ($instance_count alerts)"
           echo "📋 Alert details:"
-          echo "$instance_alert" | jq '{alertname: .labels.alertname, instance: .labels.instance}'
+          echo "$instance_alerts" | jq -r '.[] | "- Instance: \(.labels.instance // "unknown"), Job: \(.labels.job // "unknown")"'
         else
           echo "❌ InstanceDown alert not firing"
+          echo "📋 All alerts in Prometheus:"
+          echo "$prom_alerts" | jq -r '.data[] | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -5
           exit 1
         fi
         
@@ -194,11 +207,13 @@ jobs:
         echo "" >> alert_test_results.md
         
         echo "### 📈 Prometheus Alerts Status" >> alert_test_results.md
-        curl -s http://localhost:9090/api/v1/alerts | jq '.data[] | {alertname: .labels.alertname, state: .state, instance: .labels.instance}' >> alert_test_results.md
+        prom_alerts=$(curl -s http://localhost:9090/api/v1/alerts)
+        echo "$prom_alerts" | jq -r '.data[] | "- **\(.labels.alertname // "Unknown")**: \(.state // "unknown") (Instance: \(.labels.instance // "N/A"))"' >> alert_test_results.md
         
         echo "" >> alert_test_results.md
         echo "### 🚨 Alertmanager Alerts" >> alert_test_results.md
-        curl -s http://localhost:9093/api/v1/alerts | jq '.data[] | {alertname: .labels.alertname, status: .status.state}' >> alert_test_results.md
+        am_alerts=$(curl -s http://localhost:9093/api/v2/alerts)
+        echo "$am_alerts" | jq -r '.[] | "- **\(.labels.alertname // "Unknown")**: \(.status.state // "unknown")"' >> alert_test_results.md
         
         echo "" >> alert_test_results.md
         echo "### 🔗 Webhook Activity" >> alert_test_results.md
