@@ -48,7 +48,8 @@ docker-compose up -d
 ## 🔗 Access Services
 
 - **📈 Prometheus**: [http://localhost:9090](http://localhost:9090)
-- **📊 Grafana**: [http://localhost:3000](http://localhost:3000)
+- **� Alertmanager**: [http://localhost:9093](http://localhost:9093)
+- **�📊 Grafana**: [http://localhost:3000](http://localhost:3000)
   - Username: admin
   - Password: grafana
 - **🗄️ MySQL**:
@@ -184,3 +185,92 @@ To view the results:
 - `nginx-html/`: 🌐 HTML files for the Nginx web server
 - `k6-scripts/`: 🔥 Load testing scripts for k6
 - `prometheus.yml`: 📈 Prometheus configuration
+
+## 🚨 Alertmanager & Alert Rules
+
+### Overview
+Alertmanager handles alerts sent by Prometheus server. It takes care of deduplicating, grouping, and routing them to the correct receiver integrations such as email, PagerDuty, or chat platforms.
+
+### Configuration Files
+
+- **`alertmanager.yml`**: Main Alertmanager configuration file
+  - Defines routing rules for different types of alerts
+  - Configures receivers (email, webhook, etc.)
+  - Sets up inhibition rules to suppress redundant alerts
+
+- **`alert_rules.yml`**: Prometheus alert rules
+  - Defines when alerts should be triggered
+  - Includes rules for system metrics, MySQL, and Nginx monitoring
+  - Customizable thresholds and conditions
+
+### Available Alert Rules
+
+#### System Alerts
+- **InstanceDown**: Triggered when any monitored instance is down
+- **HighCpuUsage**: CPU usage above 80% for 2 minutes
+- **HighMemoryUsage**: Memory usage above 85% for 2 minutes
+- **DiskSpaceLow**: Disk space below 10%
+
+#### MySQL Alerts
+- **MySQLDown**: MySQL service is unavailable
+- **MySQLTooManyConnections**: Connection usage above 80% of max
+- **MySQLSlowQueries**: Slow queries detected
+
+#### Nginx Alerts
+- **NginxDown**: Nginx service is unavailable
+- **NginxHighRequestRate**: Request rate above 100/second
+- **NginxHighErrorRate**: Error rate above 10%
+
+### Testing Alerts
+
+1. **Start the webhook receiver** (for testing):
+   ```bash
+   python3 webhook_receiver.py
+   ```
+
+2. **Trigger test alerts** by stopping services:
+   ```bash
+   docker-compose stop mysql
+   # Wait a minute for alert to trigger
+   ```
+
+3. **View alerts in Alertmanager UI**: [http://localhost:9093](http://localhost:9093)
+
+4. **Check webhook logs** to see alert notifications
+
+### Customizing Alerts
+
+#### Modifying Alert Rules
+Edit `alert_rules.yml` to:
+- Change alert thresholds
+- Add new alert conditions
+- Modify alert labels and annotations
+
+#### Configuring Notifications
+Edit `alertmanager.yml` to:
+- Add email recipients
+- Configure Slack/Discord webhooks
+- Set up PagerDuty integration
+- Customize routing rules
+
+#### Example: Adding Slack Integration
+```yaml
+receivers:
+  - name: 'slack-alerts'
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+        channel: '#alerts'
+        title: 'Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+```
+
+### Silencing Alerts
+Use the Alertmanager UI to:
+- Temporarily silence specific alerts
+- Create silence rules based on labels
+- Manage active and expired silences
+
+After making changes to configuration files, restart the services:
+```bash
+docker-compose restart prometheus alertmanager
+```

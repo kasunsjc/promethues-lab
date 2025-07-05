@@ -28,7 +28,7 @@ delete_stack() {
 # Restart all services
 restart_all() {
     echo "🔄 Restarting all services..."
-    docker-compose down && docker-compose up -d
+    docker-compose restart
 }
 
 # View running containers

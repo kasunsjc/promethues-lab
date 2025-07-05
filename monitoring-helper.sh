@@ -77,7 +77,7 @@ while true; do
       run_command "docker-compose down"
       ;;
     3)
-      run_command "docker-compose down && docker-compose up -d"
+      run_command "docker-compose restart"
       ;;
     4)
       run_command "docker-compose ps"
