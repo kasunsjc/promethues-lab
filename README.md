@@ -1,31 +1,11 @@
 # 🔭 Prometheus Monitoring Stack
 
-- **📈 Prometheus**: Time series database for storing metrics
-- **🖥️ Node Exporter**: Provides system metrics like CPU, memory, disk usage
-- **🗄️ MySQL**: Sample database with test data
-- **📡 MySQL Exporter**: Collects metrics from MySQL
-- **📊 Grafana**: Visualizes metrics from Prometheus
-- **🖥️ Ubuntu**: Simulated Ubuntu server with Node Exporter for monitoring
-- **🌐 Nginx**: Web server for serving static content
-- **📊 Nginx Exporter**: Collects metrics from Nginx
-- **🔥 k6**: Modern load testing tool for performance testing
-- **📦 InfluxDB**: Time series database for storing k6 resultsComponents
+![Quick Validation](https://github.com/kasunsjc/promethues-lab/actions/workflows/quick-validate.yml/badge.svg)
+![Full Stack Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/validate-demos.yml/badge.svg)
+![Alert System Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/test-alerts.yml/badge.svg)
+![Load Test Validation](https://github.com/kasunsjc/promethues-lab/actions/workflows/load-test-validation.yml/badge.svg)
 
-- **📈 Prometheus**: - **📡 MySQL Exporter**: [http://localhost:9104/metrics](http://localhost:9104/metrics)
-- **🖥️ Ubuntu**:
-  - Node Exporter metrics: [http://localhost:9101/metrics](http://localhost:9101/metrics)
-- **🌐 Nginx**: series database for storing metrics
-- **🖥️ Node Exporter**: Provides system metrics like CPU, memory, disk usage
-- **🗄️ MySQL**: Sample database with test data
-- **📡 MySQL Exporter**: Collects metrics from MySQL
-- **📊 Grafana**: Visualizes metrics from Prometheus
-- **🖥️ Ubuntu**: Simulated Ubuntu server with Node Exporter for monitoring
-- **🌐 Nginx**: Web server for serving static content
-- **📊 Nginx Exporter**: Collects metrics from Nginx Monitoring Stack �
-
-This repository contains a Docker Compose setup for monitoring with Prometheus, Node Exporter, MySQL, MySQL Exporter, Grafana, Ubuntu, Nginx, and Nginx Exporter.
-
-This repository contains a Docker Compose setup for monitoring with Prometheus, Node Exporter, MySQL, MySQL Exporter, Grafana, Ubuntu, Nginx, and Nginx Exporter.
+This repository contains a comprehensive Docker Compose setup for monitoring with Prometheus, Alertmanager, Grafana, and various exporters including k6 load testing integration.
 
 ## 🧩 Components
 
@@ -162,7 +142,7 @@ Two k6 test scripts are provided in the `k6-scripts` directory:
 Load test results are stored in InfluxDB and can be visualized in Grafana using the official k6 dashboard. To import the official k6 dashboard from Grafana.com into your Grafana instance, run:
 
 ```bash
-./import-k6-dashboard.sh
+./scripts/import-k6-dashboard.sh
 ```
 
 This script will:
@@ -177,14 +157,16 @@ To view the results:
 2. Login with username `admin` and password `grafana`
 3. Navigate to Dashboards -> k6 Dashboards -> k6 Load Testing Results
 
-## �📂 Directory Structure
+## 📂 Directory Structure
 
+- `config/`: ⚙️ Configuration files (prometheus.yml, alertmanager.yml, alert rules)
+- `scripts/`: 🛠️ Helper scripts for validation, testing, and monitoring operations
 - `mysql-init/`: 🗄️ SQL initialization scripts for MySQL
 - `mysqld-exporter/`: 📡 Configuration for MySQL Exporter
 - `grafana/`: 📊 Grafana provisioning files and dashboards
 - `nginx-html/`: 🌐 HTML files for the Nginx web server
 - `k6-scripts/`: 🔥 Load testing scripts for k6
-- `prometheus.yml`: 📈 Prometheus configuration
+- `.github/workflows/`: 🤖 CI/CD workflows for automated validation
 
 ## 🚨 Alertmanager & Alert Rules
 
@@ -225,7 +207,7 @@ Alertmanager handles alerts sent by Prometheus server. It takes care of deduplic
 
 1. **Start the webhook receiver** (for testing):
    ```bash
-   python3 webhook_receiver.py
+   python3 scripts/webhook_receiver.py
    ```
 
 2. **Trigger test alerts** by stopping services:
@@ -328,14 +310,7 @@ This repository includes comprehensive GitHub Actions workflows to validate the 
 
 ### 📊 Status Badges
 
-Add these badges to your README to show validation status:
-
-```markdown
-![Quick Validation](https://github.com/kasunsjc/promethues-lab/actions/workflows/quick-validate.yml/badge.svg)
-![Full Stack Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/validate-demos.yml/badge.svg)
-![Alert System Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/test-alerts.yml/badge.svg)
-![Load Test Validation](https://github.com/kasunsjc/promethues-lab/actions/workflows/load-test-validation.yml/badge.svg)
-```
+The status badges at the top of this README show the current validation status of the monitoring stack across different workflows.
 
 ### 🔧 Manual Workflow Triggers
 
@@ -367,7 +342,7 @@ docker run --rm -v "$(pwd)/alertmanager.yml:/etc/alertmanager/alertmanager.yml" 
 bash -n *.sh
 
 # Test Python syntax
-python3 -m py_compile webhook_receiver.py
+python3 -m py_compile scripts/webhook_receiver.py
 ```
 
 The workflows ensure that:
