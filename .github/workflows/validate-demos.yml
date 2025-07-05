@@ -169,12 +169,12 @@ jobs:
       - name: 📊 Verify metrics collection
         run: |
           echo "📊 Verifying metrics are being collected..."
-
+          
           # Check if Prometheus is scraping targets
           echo "🔍 Checking Prometheus targets..."
           targets=$(curl -s http://localhost:9090/api/v1/targets | jq -r '.data.activeTargets[] | select(.health == "up") | .labels.job' | sort -u)
           echo "Active targets: $targets"
-
+          
           # Verify key metrics exist
           echo "🔍 Checking key metrics..."
           metrics=("up" "node_cpu_seconds_total" "mysql_up" "nginx_up")
@@ -185,6 +185,15 @@ jobs:
               echo "⚠️ Metric '$metric' not found"
             fi
           done
+          
+          # Specifically check Ubuntu service is being monitored
+          echo "🔍 Checking Ubuntu service metrics..."
+          ubuntu_up=$(curl -s "http://localhost:9090/api/v1/query?query=up{job=\"ubuntu\"}" | jq '.data.result | length')
+          if [[ "$ubuntu_up" -gt 0 ]]; then
+            echo "✅ Ubuntu service is being monitored"
+          else
+            echo "⚠️ Ubuntu service not found in monitoring targets"
+          fi
 
       - name: 🚨 Test alerting system
         run: |
@@ -198,9 +207,9 @@ jobs:
           # Wait for webhook receiver to start
           sleep 5
 
-          # Stop MySQL to trigger alert
-          echo "🛑 Stopping MySQL to trigger alert..."
-          docker compose stop mysql
+          # Stop Ubuntu service to trigger alert
+          echo "🛑 Stopping Ubuntu service to trigger alert..."
+          docker compose stop ubuntu
 
           # Wait for alert to fire (rules have 1m for condition)
           echo "⏳ Waiting for alert to trigger..."
@@ -230,9 +239,9 @@ jobs:
           # Stop webhook receiver
           kill $WEBHOOK_PID || true
 
-          # Restart MySQL
-          echo "🔄 Restarting MySQL..."
-          docker compose start mysql
+          # Restart Ubuntu service
+          echo "🔄 Restarting Ubuntu service..."
+          docker compose start ubuntu
 
       - name: 🔥 Test k6 load testing
         run: |
