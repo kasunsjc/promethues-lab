@@ -35,7 +35,7 @@ print_info() {
 
 validate_docker_compose() {
     print_info "Validating Docker Compose configuration..."
-    if docker-compose config --quiet; then
+    if docker compose config --quiet; then
         print_success "Docker Compose configuration is valid"
     else
         print_error "Docker Compose configuration is invalid"
@@ -121,7 +121,7 @@ validate_python_scripts() {
 check_dependencies() {
     print_info "Checking dependencies..."
     
-    local deps=("docker" "docker-compose" "python3")
+    local deps=("docker" "python3")
     local missing_deps=()
     
     for dep in "${deps[@]}"; do
@@ -132,6 +132,14 @@ check_dependencies() {
             missing_deps+=("$dep")
         fi
     done
+    
+    # Check for docker compose specifically
+    if docker compose version > /dev/null 2>&1; then
+        print_success "docker compose is available"
+    else
+        print_error "docker compose is not available"
+        missing_deps+=("docker-compose")
+    fi
     
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo ""
@@ -182,7 +190,7 @@ test_stack_startup() {
     print_info "Testing stack startup (this may take a few minutes)..."
     
     print_info "Starting services..."
-    if docker-compose up -d; then
+    if docker compose up -d; then
         print_success "Services started"
     else
         print_error "Failed to start services"
@@ -207,7 +215,7 @@ test_stack_startup() {
     done
     
     print_info "Stopping services..."
-    docker-compose down -v
+    docker compose down -v
     print_success "Services stopped and cleaned up"
 }
 

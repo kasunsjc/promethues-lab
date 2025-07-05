@@ -359,7 +359,7 @@ Before pushing changes, you can validate locally:
 
 ```bash
 # Validate configurations
-docker-compose config --quiet
+docker compose config --quiet
 docker run --rm -v "$(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml" prom/prometheus:latest promtool check config /etc/prometheus/prometheus.yml
 docker run --rm -v "$(pwd)/alertmanager.yml:/etc/alertmanager/alertmanager.yml" prom/alertmanager:latest amtool check-config /etc/alertmanager/alertmanager.yml
 

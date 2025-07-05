@@ -22,7 +22,7 @@ jobs:
     - name: ✅ Validate Docker Compose
       run: |
         echo "🔍 Validating docker-compose.yml..."
-        docker-compose config --quiet
+        docker compose config --quiet
         echo "✅ Docker Compose is valid"
         
     - name: ✅ Validate Prometheus Config

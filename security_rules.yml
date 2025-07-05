@@ -1,0 +1,209 @@
+# Security and Advanced Monitoring Rules for Prometheus
+groups:
+
+  # Security Monitoring Rules
+  - name: security.rules
+    rules:
+    
+    # High error rate - potential attack
+    - alert: HighErrorRate
+      expr: rate(nginx_http_requests_total{status=~"4..|5.."}[5m]) / rate(nginx_http_requests_total[5m]) > 0.1
+      for: 2m
+      labels:
+        severity: warning
+        category: security
+      annotations:
+        summary: "High error rate detected on {{ $labels.instance }}"
+        description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes on {{ $labels.instance }}"
+
+    # Suspicious request patterns
+    - alert: SuspiciousRequestPattern
+      expr: rate(nginx_http_requests_total[1m]) > 100
+      for: 30s
+      labels:
+        severity: warning
+        category: security
+      annotations:
+        summary: "Unusual request pattern detected on {{ $labels.instance }}"
+        description: "Request rate of {{ $value }} per second detected, possible DDoS or automated attack"
+
+    # Memory usage spike (potential memory bomb)
+    - alert: MemoryUsageSpike
+      expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+      for: 1m
+      labels:
+        severity: critical
+        category: security
+      annotations:
+        summary: "Critical memory usage on {{ $labels.instance }}"
+        description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+    # Disk space attack detection
+    - alert: RapidDiskSpaceDecrease
+      expr: predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[30m], 3600) < 0
+      for: 5m
+      labels:
+        severity: warning
+        category: security
+      annotations:
+        summary: "Rapid disk space decrease on {{ $labels.instance }}"
+        description: "Filesystem {{ $labels.mountpoint }} will be full in approximately 1 hour"
+
+  # Performance Monitoring Rules
+  - name: performance.rules
+    rules:
+    
+    # Response time degradation
+    - alert: ResponseTimeDegradation
+      expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+      for: 3m
+      labels:
+        severity: warning
+        category: performance
+      annotations:
+        summary: "Response time degradation on {{ $labels.instance }}"
+        description: "95th percentile response time is {{ $value }}s"
+
+    # Database connection pool exhaustion
+    - alert: DatabaseConnectionPoolHigh
+      expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections > 0.8
+      for: 2m
+      labels:
+        severity: warning
+        category: performance
+      annotations:
+        summary: "Database connection pool almost exhausted"
+        description: "{{ $value | humanizePercentage }} of max connections are in use"
+
+    # High CPU usage
+    - alert: HighCPUUsage
+      expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+      for: 5m
+      labels:
+        severity: warning
+        category: performance
+      annotations:
+        summary: "High CPU usage on {{ $labels.instance }}"
+        description: "CPU usage is {{ $value | humanizePercentage }}"
+
+    # Network throughput anomaly
+    - alert: HighNetworkTraffic
+      expr: rate(node_network_receive_bytes_total[5m]) > 100000000  # 100MB/s
+      for: 2m
+      labels:
+        severity: warning
+        category: performance
+      annotations:
+        summary: "High network traffic on {{ $labels.instance }}"
+        description: "Network receive rate: {{ $value | humanize }}B/s"
+
+  # Application Health Rules
+  - name: application.rules
+    rules:
+    
+    # Service discovery issues
+    - alert: ServiceDiscoveryFailure
+      expr: up == 0
+      for: 1m
+      labels:
+        severity: critical
+        category: availability
+      annotations:
+        summary: "Service {{ $labels.instance }} is down"
+        description: "{{ $labels.job }} service on {{ $labels.instance }} has been down for more than 1 minute"
+
+    # Container restart detection
+    - alert: ContainerRestarting
+      expr: increase(prometheus_tsdb_restarts_total[1h]) > 0
+      for: 0m
+      labels:
+        severity: warning
+        category: availability
+      annotations:
+        summary: "Container has restarted"
+        description: "Container {{ $labels.instance }} has restarted {{ $value }} times in the last hour"
+
+    # Load balancer health
+    - alert: LoadBalancerHealthCheck
+      expr: nginx_up == 0
+      for: 30s
+      labels:
+        severity: critical
+        category: availability
+      annotations:
+        summary: "Nginx load balancer is down"
+        description: "Nginx on {{ $labels.instance }} is not responding to health checks"
+
+  # Business Logic Rules
+  - name: business.rules
+    rules:
+    
+    # User experience impact
+    - alert: UserExperienceImpact
+      expr: rate(nginx_http_requests_total{status=~"5.."}[5m]) > 1
+      for: 2m
+      labels:
+        severity: warning
+        category: business
+      annotations:
+        summary: "Users experiencing server errors"
+        description: "{{ $value }} server errors per second affecting user experience"
+
+    # Traffic anomaly detection
+    - alert: TrafficAnomalyLow
+      expr: rate(nginx_http_requests_total[5m]) < 0.1 and hour() >= 9 and hour() <= 17
+      for: 10m
+      labels:
+        severity: warning
+        category: business
+      annotations:
+        summary: "Unusually low traffic during business hours"
+        description: "Only {{ $value }} requests per second during expected high-traffic period"
+
+    # Database transaction rate anomaly
+    - alert: DatabaseTransactionAnomaly
+      expr: rate(mysql_global_status_queries[5m]) < 1 and hour() >= 9 and hour() <= 17
+      for: 5m
+      labels:
+        severity: warning
+        category: business
+      annotations:
+        summary: "Low database activity during business hours"
+        description: "Database query rate is only {{ $value }} per second"
+
+  # Capacity Planning Rules
+  - name: capacity.rules
+    rules:
+    
+    # Predictive disk space monitoring
+    - alert: DiskSpacePrediction
+      expr: predict_linear(node_filesystem_avail_bytes{mountpoint="/"}[6h], 24*3600) < 1073741824  # Less than 1GB predicted
+      for: 30m
+      labels:
+        severity: warning
+        category: capacity
+      annotations:
+        summary: "Disk space will be exhausted soon"
+        description: "Based on current usage trend, disk will be full in approximately 24 hours"
+
+    # Memory capacity planning
+    - alert: MemoryCapacityWarning
+      expr: predict_linear(node_memory_MemAvailable_bytes[2h], 6*3600) < 536870912  # Less than 512MB predicted
+      for: 15m
+      labels:
+        severity: warning
+        category: capacity
+      annotations:
+        summary: "Memory capacity warning"
+        description: "Available memory trending downward, may need attention in 6 hours"
+
+    # Connection pool capacity
+    - alert: ConnectionPoolCapacity
+      expr: mysql_global_status_threads_connected > mysql_global_variables_max_connections * 0.7
+      for: 5m
+      labels:
+        severity: warning
+        category: capacity
+      annotations:
+        summary: "Database connection pool at 70% capacity"
+        description: "Consider increasing max_connections or investigating connection leaks"

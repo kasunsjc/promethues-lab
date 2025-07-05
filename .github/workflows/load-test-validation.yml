@@ -34,7 +34,7 @@ jobs:
     - name: 🚀 Start monitoring stack
       run: |
         echo "🚀 Starting monitoring stack..."
-        docker-compose up -d
+        docker compose up -d
         
         echo "⏳ Waiting for services..."
         sleep 60
@@ -90,8 +90,12 @@ jobs:
       run: |
         echo "🔥 Running basic k6 load test..."
         
+        # Get the actual network name
+        NETWORK_NAME=$(docker network ls --format "{{.Name}}" | grep -E "(prometheus|monitoring)" | head -1)
+        echo "📊 Using network: $NETWORK_NAME"
+        
         # Run the basic nginx load test
-        docker run --rm --network prometheus_monitoring \
+        docker run --rm --network "$NETWORK_NAME" \
           -v "$(pwd)/k6-scripts:/scripts" \
           -e K6_OUT=influxdb=http://influxdb:8086/k6 \
           grafana/k6:latest run /scripts/nginx-load-test.js
@@ -102,8 +106,12 @@ jobs:
       run: |
         echo "🔥 Running advanced k6 load test..."
         
+        # Get the actual network name
+        NETWORK_NAME=$(docker network ls --format "{{.Name}}" | grep -E "(prometheus|monitoring)" | head -1)
+        echo "📊 Using network: $NETWORK_NAME"
+        
         # Run the advanced nginx load test
-        docker run --rm --network prometheus_monitoring \
+        docker run --rm --network "$NETWORK_NAME" \
           -v "$(pwd)/k6-scripts:/scripts" \
           -e K6_OUT=influxdb=http://influxdb:8086/k6 \
           grafana/k6:latest run /scripts/nginx-advanced-test.js
@@ -196,7 +204,7 @@ jobs:
       if: always()
       run: |
         echo "🧹 Cleaning up..."
-        docker-compose down -v
+        docker compose down -v
         echo "✅ Cleanup completed"
         
     - name: 📤 Upload test report

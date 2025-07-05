@@ -35,7 +35,7 @@ jobs:
     - name: 🚀 Start monitoring stack
       run: |
         echo "🚀 Starting monitoring stack..."
-        docker-compose up -d
+        docker compose up -d
         
         echo "⏳ Waiting for services to initialize..."
         sleep 90
@@ -87,7 +87,7 @@ jobs:
         
         # Stop MySQL service
         echo "🛑 Stopping MySQL service..."
-        docker-compose stop mysql
+        docker compose stop mysql
         
         # Wait for alert to trigger (1 minute + buffer)
         echo "⏳ Waiting 90 seconds for MySQLDown alert..."
@@ -132,7 +132,7 @@ jobs:
         
         # Restart MySQL
         echo "🔄 Restarting MySQL service..."
-        docker-compose start mysql
+        docker compose start mysql
         
         # Wait for service to be healthy
         echo "⏳ Waiting for MySQL to be healthy..."
@@ -164,7 +164,7 @@ jobs:
         
         # Stop node-exporter to trigger InstanceDown
         echo "🛑 Stopping node-exporter..."
-        docker-compose stop node-exporter
+        docker compose stop node-exporter
         
         # Wait for alert
         echo "⏳ Waiting 90 seconds for InstanceDown alert..."
@@ -183,7 +183,7 @@ jobs:
         
         # Restart node-exporter
         echo "🔄 Restarting node-exporter..."
-        docker-compose start node-exporter
+        docker compose start node-exporter
         
     - name: 📊 Generate Summary Report
       if: always()
@@ -219,7 +219,7 @@ jobs:
         fi
         
         # Stop all services
-        docker-compose down -v
+        docker compose down -v
         
         echo "✅ Cleanup completed"
         

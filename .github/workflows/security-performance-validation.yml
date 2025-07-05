@@ -1,0 +1,321 @@
+name: 🔒 Security & Performance Validation
+
+on:
+  schedule:
+    # Run security and performance checks weekly on Mondays at 2 AM UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      analysis_type:
+        description: 'Type of analysis to run'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+        - full
+        - security
+        - performance
+        - quick
+      severity_threshold:
+        description: 'Alert severity threshold (critical/warning/info)'
+        required: false
+        default: 'warning'
+        type: choice
+        options:
+        - critical
+        - warning
+        - info
+
+jobs:
+  security-performance-validation:
+    name: 🔒 Security & Performance Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      
+    - name: 📦 Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq curl bc netstat-nat
+        
+    - name: 🚀 Start monitoring stack
+      run: |
+        echo "🚀 Starting comprehensive monitoring stack..."
+        docker compose up -d
+        
+        echo "⏳ Waiting for services to be ready..."
+        sleep 90
+        
+        # Verify all services are running
+        docker compose ps
+        
+    - name: 🔍 Verify service health
+      run: |
+        echo "🔍 Checking service health..."
+        
+        services=(
+          "prometheus:9090"
+          "alertmanager:9093"
+          "grafana:3000"
+          "mysql:3306"
+          "nginx:8080"
+          "influxdb:8086"
+        )
+        
+        for service in "${services[@]}"; do
+          name="${service%%:*}"
+          port="${service##*:}"
+          
+          echo "Checking $name on port $port..."
+          for i in {1..12}; do
+            if curl -sf "http://localhost:${port}" > /dev/null 2>&1 || \
+               curl -sf "http://localhost:${port}/api/v1/status/buildinfo" > /dev/null 2>&1 || \
+               nc -z localhost "$port" 2>/dev/null; then
+              echo "✅ $name is healthy"
+              break
+            fi
+            echo "⏳ Waiting for $name... ($i/12)"
+            sleep 10
+          done
+        done
+        
+    - name: 🔒 Run security monitoring checks
+      if: ${{ github.event.inputs.analysis_type == 'full' || github.event.inputs.analysis_type == 'security' || github.event.inputs.analysis_type == '' }}
+      run: |
+        echo "🔒 Running security monitoring checks..."
+        
+        # Make script executable
+        chmod +x ./security-monitoring.sh
+        
+        # Run security checks
+        ./security-monitoring.sh check
+        
+        # Check for critical security alerts
+        critical_alerts=$(curl -s 'http://localhost:9090/api/v1/alerts' | jq '.data[] | select(.labels.severity == "critical" and .labels.category == "security")' | jq -s length)
+        
+        if [[ "$critical_alerts" -gt 0 ]]; then
+          echo "🚨 Critical security alerts detected: $critical_alerts"
+          curl -s 'http://localhost:9090/api/v1/alerts' | jq '.data[] | select(.labels.severity == "critical" and .labels.category == "security")'
+        else
+          echo "✅ No critical security alerts"
+        fi
+        
+    - name: 📊 Run performance analysis
+      if: ${{ github.event.inputs.analysis_type == 'full' || github.event.inputs.analysis_type == 'performance' || github.event.inputs.analysis_type == '' }}
+      run: |
+        echo "📊 Running performance analysis..."
+        
+        # Make script executable
+        chmod +x ./performance-analysis.sh
+        
+        # Run performance analysis
+        ./performance-analysis.sh analyze
+        
+        # Check for performance alerts
+        perf_alerts=$(curl -s 'http://localhost:9090/api/v1/alerts' | jq '.data[] | select(.labels.category == "performance")' | jq -s length)
+        
+        echo "📈 Performance alerts: $perf_alerts"
+        
+    - name: 🔥 Run load test with security monitoring
+      if: ${{ github.event.inputs.analysis_type == 'full' || github.event.inputs.analysis_type == '' }}
+      run: |
+        echo "🔥 Running load test with security monitoring..."
+        
+        # Get the network name
+        NETWORK_NAME=$(docker network ls --format "{{.Name}}" | grep -E "(prometheus|monitoring)" | head -1)
+        echo "📊 Using network: $NETWORK_NAME"
+        
+        # Run comprehensive performance test
+        docker run --rm --network "$NETWORK_NAME" \
+          -v "$(pwd)/k6-scripts:/scripts" \
+          -e K6_OUT=influxdb=http://influxdb:8086/k6 \
+          -e TEST_INTENSITY=light \
+          grafana/k6:latest run /scripts/comprehensive-performance-test.js
+          
+        echo "✅ Load test completed"
+        
+        # Monitor for security alerts during load test
+        sleep 30
+        security_alerts=$(curl -s 'http://localhost:9090/api/v1/alerts' | jq '.data[] | select(.labels.category == "security")' | jq -s length)
+        
+        if [[ "$security_alerts" -gt 0 ]]; then
+          echo "🚨 Security alerts triggered during load test: $security_alerts"
+          curl -s 'http://localhost:9090/api/v1/alerts' | jq '.data[] | select(.labels.category == "security")'
+        else
+          echo "✅ No security alerts during load test"
+        fi
+        
+    - name: 🧪 Test alert routing and security notifications
+      run: |
+        echo "🧪 Testing alert routing and security notifications..."
+        
+        # Start webhook receiver for testing
+        python3 webhook_receiver.py &
+        WEBHOOK_PID=$!
+        sleep 5
+        
+        # Force trigger a security-related alert by simulating high error rate
+        echo "Triggering test alerts..."
+        
+        # Simulate high request rate
+        for i in {1..10}; do
+          curl -s http://localhost:8080/ > /dev/null &
+          curl -s http://localhost:8080/nonexistent > /dev/null &
+        done
+        
+        sleep 60
+        
+        # Check if alerts are firing
+        firing_alerts=$(curl -s 'http://localhost:9090/api/v1/alerts' | jq '.data[] | select(.state == "firing")' | jq -s length)
+        echo "🔥 Currently firing alerts: $firing_alerts"
+        
+        # Check alertmanager
+        am_alerts=$(curl -s 'http://localhost:9093/api/v1/alerts' | jq '. | length')
+        echo "📬 Alerts in Alertmanager: $am_alerts"
+        
+        # Clean up webhook receiver
+        kill $WEBHOOK_PID || true
+        
+    - name: 🔍 Validate security rules and thresholds
+      run: |
+        echo "🔍 Validating security rules and thresholds..."
+        
+        # Check if security rules are loaded
+        rules_loaded=$(curl -s 'http://localhost:9090/api/v1/rules' | jq '.data.groups[] | select(.name | contains("security"))' | jq -s length)
+        
+        if [[ "$rules_loaded" -gt 0 ]]; then
+          echo "✅ Security rules loaded: $rules_loaded groups"
+          curl -s 'http://localhost:9090/api/v1/rules' | jq '.data.groups[] | select(.name | contains("security")) | .name'
+        else
+          echo "❌ Security rules not found"
+          exit 1
+        fi
+        
+        # Validate rule syntax
+        echo "Validating rule syntax..."
+        curl -s 'http://localhost:9090/api/v1/rules' | jq '.data.groups[].rules[] | select(.type == "alerting") | .name' | head -10
+        
+    - name: 📊 Generate comprehensive security report
+      if: always()
+      run: |
+        echo "📊 Generating comprehensive security and performance report..."
+        
+        # Run security report generation
+        ./security-monitoring.sh report
+        
+        # Create combined report
+        REPORT_FILE="comprehensive_report_$(date +%Y%m%d_%H%M%S).md"
+        
+        echo "# 🔒 Comprehensive Security & Performance Report" > "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+        echo "**Generated:** $(date)" >> "$REPORT_FILE"
+        echo "**Analysis Type:** ${{ github.event.inputs.analysis_type || 'full' }}" >> "$REPORT_FILE"
+        echo "**Severity Threshold:** ${{ github.event.inputs.severity_threshold || 'warning' }}" >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+        
+        echo "## 🚨 Alert Summary" >> "$REPORT_FILE"
+        
+        # Get current alerts by category
+        for category in security performance business capacity availability; do
+          count=$(curl -s 'http://localhost:9090/api/v1/alerts' | jq ".data[] | select(.labels.category == \"$category\")" | jq -s length)
+          echo "- **$category:** $count alerts" >> "$REPORT_FILE"
+        done
+        
+        echo "" >> "$REPORT_FILE"
+        echo "## 📈 Performance Metrics" >> "$REPORT_FILE"
+        
+        # Add key performance metrics
+        cpu_usage=$(curl -s 'http://localhost:9090/api/v1/query?query=100-(avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)' | jq -r '.data.result[0].value[1] // "N/A"')
+        memory_usage=$(curl -s 'http://localhost:9090/api/v1/query?query=(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100' | jq -r '.data.result[0].value[1] // "N/A"')
+        request_rate=$(curl -s 'http://localhost:9090/api/v1/query?query=sum(rate(nginx_http_requests_total[5m]))' | jq -r '.data.result[0].value[1] // "N/A"')
+        
+        echo "- **CPU Usage:** ${cpu_usage}%" >> "$REPORT_FILE"
+        echo "- **Memory Usage:** ${memory_usage}%" >> "$REPORT_FILE"
+        echo "- **Request Rate:** ${request_rate} req/s" >> "$REPORT_FILE"
+        
+        echo "" >> "$REPORT_FILE"
+        echo "## 🔍 Security Analysis" >> "$REPORT_FILE"
+        
+        # Add security findings
+        error_rate=$(curl -s 'http://localhost:9090/api/v1/query?query=rate(nginx_http_requests_total{status=~"4..|5.."}[5m]) / rate(nginx_http_requests_total[5m])' | jq -r '.data.result[0].value[1] // "0"')
+        echo "- **Error Rate:** ${error_rate}" >> "$REPORT_FILE"
+        
+        # Add recommendations based on findings
+        echo "" >> "$REPORT_FILE"
+        echo "## 💡 Recommendations" >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+        
+        if (( $(echo "$cpu_usage > 80" | bc -l 2>/dev/null || echo 0) )); then
+          echo "- 🔴 **High CPU Usage**: Consider scaling or optimization" >> "$REPORT_FILE"
+        fi
+        
+        if (( $(echo "$memory_usage > 85" | bc -l 2>/dev/null || echo 0) )); then
+          echo "- 🔴 **High Memory Usage**: Memory optimization needed" >> "$REPORT_FILE"
+        fi
+        
+        if (( $(echo "$error_rate > 0.1" | bc -l 2>/dev/null || echo 0) )); then
+          echo "- 🔴 **High Error Rate**: Investigate potential security issues" >> "$REPORT_FILE"
+        fi
+        
+        echo "- ✅ **Regular Monitoring**: Continue regular security and performance monitoring" >> "$REPORT_FILE"
+        echo "- ✅ **Alert Tuning**: Review and tune alert thresholds based on baseline" >> "$REPORT_FILE"
+        echo "- ✅ **Security Updates**: Keep all components updated" >> "$REPORT_FILE"
+        
+        cat "$REPORT_FILE"
+        
+    - name: 🧹 Cleanup
+      if: always()
+      run: |
+        echo "🧹 Cleaning up..."
+        
+        # Save logs before cleanup
+        mkdir -p artifacts
+        docker compose logs > artifacts/docker-logs.txt
+        
+        # Copy reports
+        cp -f reports/*.md artifacts/ 2>/dev/null || true
+        cp -f logs/*.md artifacts/ 2>/dev/null || true
+        cp -f logs/*.log artifacts/ 2>/dev/null || true
+        cp -f comprehensive_report_*.md artifacts/ 2>/dev/null || true
+        
+        # Cleanup
+        docker compose down -v
+        echo "✅ Cleanup completed"
+        
+    - name: 📤 Upload analysis artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-performance-analysis
+        path: |
+          artifacts/
+          reports/
+          logs/
+        retention-days: 30
+        
+    - name: 📋 Summary
+      if: always()
+      run: |
+        echo "## 📋 Security & Performance Validation Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Analysis Type:** ${{ github.event.inputs.analysis_type || 'full' }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Completed:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Add key metrics to summary
+        total_alerts=$(curl -s 'http://localhost:9090/api/v1/alerts' 2>/dev/null | jq '.data | length' || echo "0")
+        echo "**Total Active Alerts:** $total_alerts" >> $GITHUB_STEP_SUMMARY
+        
+        critical_alerts=$(curl -s 'http://localhost:9090/api/v1/alerts' 2>/dev/null | jq '.data[] | select(.labels.severity == "critical")' | jq -s length || echo "0")
+        echo "**Critical Alerts:** $critical_alerts" >> $GITHUB_STEP_SUMMARY
+        
+        if [[ "$critical_alerts" -gt 0 ]]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🚨 **Critical alerts detected!** Review the analysis artifacts for details." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **No critical alerts detected.** System appears healthy." >> $GITHUB_STEP_SUMMARY
+        fi

@@ -37,7 +37,7 @@ jobs:
     - name: ✅ Validate Docker Compose file
       run: |
         echo "🔍 Validating docker-compose.yml..."
-        docker-compose config --quiet
+        docker compose config --quiet
         echo "✅ Docker Compose configuration is valid"
         
     - name: ✅ Validate Prometheus configuration
@@ -86,19 +86,19 @@ jobs:
     - name: 🚀 Start monitoring stack
       run: |
         echo "🔄 Starting all services..."
-        docker-compose up -d
+        docker compose up -d
         echo "⏳ Waiting for services to be ready..."
         sleep 60
         
     - name: 🔍 Verify services are running
       run: |
         echo "📊 Checking service status..."
-        docker-compose ps
+        docker compose ps
         
         # Check if all expected services are running
         services=(prometheus alertmanager grafana mysql mysql-exporter node-exporter nginx nginx-exporter influxdb ubuntu)
         for service in "${services[@]}"; do
-          if docker-compose ps "$service" | grep -q "Up"; then
+          if docker compose ps "$service" | grep -q "Up"; then
             echo "✅ $service is running"
           else
             echo "❌ $service is not running"
@@ -180,7 +180,7 @@ jobs:
         
         # Stop MySQL to trigger alert
         echo "🛑 Stopping MySQL to trigger alert..."
-        docker-compose stop mysql
+        docker compose stop mysql
         
         # Wait for alert to fire (rules have 1m for condition)
         echo "⏳ Waiting for alert to trigger..."
@@ -213,7 +213,7 @@ jobs:
         
         # Restart MySQL
         echo "🔄 Restarting MySQL..."
-        docker-compose start mysql
+        docker compose start mysql
         
     - name: 🔥 Test k6 load testing
       run: |
@@ -222,8 +222,12 @@ jobs:
         # Wait for nginx to be ready
         sleep 10
         
+        # Get the actual network name (may vary based on directory name)
+        NETWORK_NAME=$(docker network ls --format "{{.Name}}" | grep -E "(prometheus|monitoring)" | head -1)
+        echo "📊 Using network: $NETWORK_NAME"
+        
         # Run a simple k6 test
-        docker run --rm --network prometheus_monitoring \
+        docker run --rm --network "$NETWORK_NAME" \
           -v "$(pwd)/k6-scripts:/scripts" \
           grafana/k6:latest run /scripts/nginx-load-test.js
         
@@ -251,10 +255,10 @@ jobs:
         echo "💥 Test failed! Collecting logs for debugging..."
         
         echo "📊 Service status:"
-        docker-compose ps
+        docker compose ps
         
         echo "📜 Docker logs:"
-        docker-compose logs --tail=50
+        docker compose logs --tail=50
         
         echo "🔍 System resources:"
         df -h
@@ -264,7 +268,7 @@ jobs:
       if: always()
       run: |
         echo "🛑 Stopping all services..."
-        docker-compose down -v
+        docker compose down -v
         echo "✅ Cleanup completed"
 
   test-helper-scripts:
@@ -288,7 +292,7 @@ jobs:
         
     - name: 🚀 Start minimal stack for script testing
       run: |
-        docker-compose up -d prometheus alertmanager
+        docker compose up -d prometheus alertmanager
         sleep 30
         
     - name: 🔧 Test helper scripts
@@ -317,7 +321,7 @@ jobs:
     - name: 🛑 Cleanup
       if: always()
       run: |
-        docker-compose down -v
+        docker compose down -v
 
   security-scan:
     name: 🔒 Security Scan
