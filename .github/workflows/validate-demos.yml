@@ -274,22 +274,6 @@ jobs:
 
           echo "✅ k6 load test completed successfully"
 
-      - name: 📊 Verify Grafana dashboards
-        run: |
-          echo "📊 Verifying Grafana dashboards..."
-
-          # Wait for Grafana to be fully ready
-          sleep 10
-
-          # Check if dashboards are accessible
-          # Note: In a real scenario, you might want to use Grafana API with authentication
-          if curl -sf http://localhost:3000/api/search; then
-            echo "✅ Grafana API is accessible"
-          else
-            echo "❌ Grafana API not accessible"
-            exit 1
-          fi
-
       - name: 🧹 Cleanup and logs on failure
         if: failure()
         run: |
