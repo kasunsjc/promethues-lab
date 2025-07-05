@@ -28,7 +28,9 @@ jobs:
     - name: ✅ Validate Prometheus Config
       run: |
         echo "🔍 Validating Prometheus configuration..."
-        docker run --rm -v "$(pwd)/prometheus.yml:/etc/prometheus/prometheus.yml" \
+        docker run --rm \
+          --entrypoint="" \
+          -v "$(pwd)/config:/etc/prometheus:ro" \
           prom/prometheus:latest \
           promtool check config /etc/prometheus/prometheus.yml
         echo "✅ Prometheus config is valid"
@@ -36,15 +38,29 @@ jobs:
     - name: ✅ Validate Alert Rules
       run: |
         echo "🔍 Validating alert rules..."
-        docker run --rm -v "$(pwd)/alert_rules.yml:/etc/prometheus/alert_rules.yml" \
+        docker run --rm \
+          --entrypoint="" \
+          -v "$(pwd)/config:/etc/prometheus:ro" \
           prom/prometheus:latest \
           promtool check rules /etc/prometheus/alert_rules.yml
+        
+        # Also validate security rules if they exist
+        if [[ -f config/security_rules.yml ]]; then
+          echo "🔍 Validating security rules..."
+          docker run --rm \
+            --entrypoint="" \
+            -v "$(pwd)/config:/etc/prometheus:ro" \
+            prom/prometheus:latest \
+            promtool check rules /etc/prometheus/security_rules.yml
+        fi
         echo "✅ Alert rules are valid"
         
     - name: ✅ Validate Alertmanager Config
       run: |
         echo "🔍 Validating Alertmanager configuration..."
-        docker run --rm -v "$(pwd)/alertmanager.yml:/etc/alertmanager/alertmanager.yml" \
+        docker run --rm \
+          --entrypoint="" \
+          -v "$(pwd)/config:/etc/alertmanager:ro" \
           prom/alertmanager:latest \
           amtool check-config /etc/alertmanager/alertmanager.yml
         echo "✅ Alertmanager config is valid"
