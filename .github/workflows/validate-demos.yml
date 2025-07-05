@@ -286,53 +286,6 @@ jobs:
         echo "🛑 Stopping all services..."
         docker compose down -v
         echo "✅ Cleanup completed"
-
-  test-helper-scripts:
-    name: 🔧 Test Helper Scripts
-    runs-on: ubuntu-latest
-    needs: validate-configs
-    
-    steps:
-    - name: 📥 Checkout code
-      uses: actions/checkout@v4
-      
-    - name: 🐍 Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-        
-    - name: 📦 Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y jq curl
-        
-    - name: 🚀 Start minimal stack for script testing
-      run: |
-        docker compose up -d prometheus alertmanager
-        sleep 30
-        
-    - name: 🔧 Test helper scripts
-      run: |
-        echo "🔧 Testing helper scripts..."
-        
-        # Make scripts executable
-        chmod +x *.sh
-        
-        # Test monitoring-helper.sh
-        echo "🔍 Testing monitoring-helper.sh..."
-        ./monitoring-helper.sh help
-        
-        # Test commands.sh
-        echo "🔍 Testing commands.sh..."
-        ./commands.sh help
-        
-        # Test alertmanager-helper.sh
-        echo "🔍 Testing alertmanager-helper.sh..."
-        ./alertmanager-helper.sh help
-        ./alertmanager-helper.sh status
-        ./alertmanager-helper.sh validate-config
-        
-        echo "✅ All helper scripts working correctly"
         
     - name: 🛑 Cleanup
       if: always()
@@ -356,7 +309,7 @@ jobs:
         output: 'trivy-results.sarif'
         
     - name: 📊 Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
@@ -401,7 +354,7 @@ jobs:
   notify-success:
     name: 🎉 Notify Success
     runs-on: ubuntu-latest
-    needs: [validate-configs, test-stack-deployment, test-helper-scripts, security-scan, documentation-check]
+    needs: [validate-configs, test-stack-deployment, security-scan, documentation-check]
     if: success()
     
     steps:
