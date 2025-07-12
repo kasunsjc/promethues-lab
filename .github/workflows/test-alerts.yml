@@ -88,54 +88,133 @@ jobs:
         # Stop MySQL service
         echo "🛑 Stopping MySQL service..."
         docker compose stop mysql
+        
+        # Verify MySQL is actually stopped
+        echo "🔍 Verifying MySQL is stopped..."
+        mysql_status=$(docker compose ps mysql --format json | jq -r '.[0].State // "unknown"' 2>/dev/null || echo "stopped")
+        echo "📋 MySQL container status: $mysql_status"
+        
+        # Test MySQL connection to confirm it's down
+        if nc -z localhost 3306; then
+          echo "⚠️ MySQL port 3306 is still accessible - service might not be fully stopped"
+        else
+          echo "✅ MySQL port 3306 is not accessible - service is down"
+        fi
 
         # Wait for alert to trigger (1 minute + buffer)
         echo "⏳ Waiting 90 seconds for MySQLDown alert..."
         sleep 90
+        
+        # Check if alert rules are loaded
+        echo "🔍 Checking if alert rules are loaded in Prometheus..."
+        rules_response=$(curl -s http://localhost:9090/api/v1/rules)
+        echo "📋 Alert rules response:"
+        echo "$rules_response" | jq '.'
+        
+        # Check for MySQLDown rule specifically
+        mysql_rule=$(echo "$rules_response" | jq '.data.groups[]?.rules[]? | select(.name == "MySQLDown")')
+        if [[ -n "$mysql_rule" && "$mysql_rule" != "null" ]]; then
+          echo "✅ MySQLDown alert rule is loaded"
+          echo "📋 Rule details:"
+          echo "$mysql_rule" | jq '.'
+        else
+          echo "❌ MySQLDown alert rule not found in Prometheus"
+          echo "📋 Available alert rules:"
+          echo "$rules_response" | jq -r '.data.groups[]?.rules[]? | select(.type == "alerting") | "- \(.name)"' | head -10
+        fi
 
         # Check if alert is firing in Prometheus
+        echo "🔍 Checking Prometheus alerts API..."
         prom_alerts=$(curl -s http://localhost:9090/api/v1/alerts)
+        
+        # Debug: Check if we got a valid response
+        if [[ -z "$prom_alerts" ]]; then
+          echo "❌ Empty response from Prometheus API"
+          exit 1
+        fi
+        
         echo "📋 Raw Prometheus API response:"
-        echo "$prom_alerts" | jq '.'
+        echo "$prom_alerts"
+        
+        # Check if response has proper JSON structure
+        if ! echo "$prom_alerts" | jq empty 2>/dev/null; then
+          echo "❌ Invalid JSON response from Prometheus"
+          exit 1
+        fi
+        
+        # Check if response has data field
+        data_exists=$(echo "$prom_alerts" | jq 'has("data")')
+        if [[ "$data_exists" != "true" ]]; then
+          echo "❌ Prometheus API response missing 'data' field"
+          echo "Response structure: $(echo "$prom_alerts" | jq 'keys')"
+          exit 1
+        fi
         
         # Check if we have any data
-        if [[ $(echo "$prom_alerts" | jq '.data | length') -eq 0 ]]; then
-          echo "⚠️ No alerts found in Prometheus"
+        data_length=$(echo "$prom_alerts" | jq '.data | length')
+        if [[ "$data_length" -eq 0 ]]; then
+          echo "⚠️ No alerts found in Prometheus (data array is empty)"
           echo "❌ MySQLDown alert not firing in Prometheus"
           exit 1
         fi
         
-        mysql_alert=$(echo "$prom_alerts" | jq '.data[]? | select(.labels.alertname == "MySQLDown" and .state == "firing")')
-        if [[ -n "$mysql_alert" && "$mysql_alert" != "null" ]]; then
+        echo "✅ Found $data_length alerts in Prometheus"
+        
+        # Safely check for MySQL alert
+        mysql_alert=$(echo "$prom_alerts" | jq '.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")' 2>/dev/null || echo "null")
+        if [[ -n "$mysql_alert" && "$mysql_alert" != "null" && "$mysql_alert" != "" ]]; then
           echo "✅ MySQLDown alert is firing in Prometheus"
+          echo "📋 Alert details:"
+          echo "$mysql_alert" | jq '.'
         else
           echo "❌ MySQLDown alert not firing in Prometheus"
           echo "📋 All alerts in Prometheus:"
-          echo "$prom_alerts" | jq -r '.data[]? | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -5
+          echo "$prom_alerts" | jq -r '.data[] | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -10
           exit 1
         fi
 
         # Check if alert reached Alertmanager (wait a bit more for propagation)
         echo "⏳ Waiting 30 seconds for alert to reach Alertmanager..."
         sleep 30
-        am_alerts=$(curl -s http://localhost:9093/api/v2/alerts)
-        echo "📋 Raw Alertmanager API response:"
-        echo "$am_alerts" | jq '.'
         
-        # Check if we have any alerts
-        if [[ $(echo "$am_alerts" | jq 'length') -eq 0 ]]; then
-          echo "⚠️ No alerts found in Alertmanager"
+        echo "🔍 Checking Alertmanager alerts API..."
+        am_alerts=$(curl -s http://localhost:9093/api/v2/alerts)
+        
+        # Debug: Check if we got a valid response
+        if [[ -z "$am_alerts" ]]; then
+          echo "❌ Empty response from Alertmanager API"
+          exit 1
+        fi
+        
+        echo "📋 Raw Alertmanager API response:"
+        echo "$am_alerts"
+        
+        # Check if response has proper JSON structure
+        if ! echo "$am_alerts" | jq empty 2>/dev/null; then
+          echo "❌ Invalid JSON response from Alertmanager"
+          exit 1
+        fi
+        
+        # Check if we have any alerts (v2 API returns array directly)
+        alerts_length=$(echo "$am_alerts" | jq 'length')
+        if [[ "$alerts_length" -eq 0 ]]; then
+          echo "⚠️ No alerts found in Alertmanager (array is empty)"
           echo "❌ MySQLDown alert not in Alertmanager"
           exit 1
         fi
         
-        am_mysql_alert=$(echo "$am_alerts" | jq '.[]? | select(.labels.alertname == "MySQLDown")')
-        if [[ -n "$am_mysql_alert" && "$am_mysql_alert" != "null" ]]; then
+        echo "✅ Found $alerts_length alerts in Alertmanager"
+        
+        # Safely check for MySQL alert
+        am_mysql_alert=$(echo "$am_alerts" | jq '.[] | select(.labels.alertname == "MySQLDown")' 2>/dev/null || echo "null")
+        if [[ -n "$am_mysql_alert" && "$am_mysql_alert" != "null" && "$am_mysql_alert" != "" ]]; then
           echo "✅ MySQLDown alert reached Alertmanager"
+          echo "📋 Alert details:"
+          echo "$am_mysql_alert" | jq '.'
         else
           echo "❌ MySQLDown alert not in Alertmanager"
           echo "📋 All alerts in Alertmanager:"
-          echo "$am_alerts" | jq -r '.[]? | "- \(.labels.alertname // "unknown") (\(.status.state // "unknown"))"' | head -5
+          echo "$am_alerts" | jq -r '.[] | "- \(.labels.alertname // "unknown") (\(.status.state // "unknown"))"' | head -10
           exit 1
         fi
 
