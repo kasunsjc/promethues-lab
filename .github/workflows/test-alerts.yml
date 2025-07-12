@@ -161,7 +161,7 @@ jobs:
         echo "✅ Found $data_length alerts in Prometheus"
         
         # Safely check for MySQL alert
-        mysql_alert=$(echo "$prom_alerts" | jq '.data[] | select(.labels.alertname == "MySQLDown" and .state == "firing")' 2>/dev/null || echo "null")
+        mysql_alert=$(echo "$prom_alerts" | jq '.data[] | .[] | select(.labels.alertname == "MySQLDown" and .state == "firing")' 2>/dev/null || echo "null")
         if [[ -n "$mysql_alert" && "$mysql_alert" != "null" && "$mysql_alert" != "" ]]; then
           echo "✅ MySQLDown alert is firing in Prometheus"
           echo "📋 Alert details:"
@@ -169,7 +169,7 @@ jobs:
         else
           echo "❌ MySQLDown alert not firing in Prometheus"
           echo "📋 All alerts in Prometheus:"
-          echo "$prom_alerts" | jq -r '.data[] | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -10
+          echo "$prom_alerts" | jq -r '.data[] | .[] | "- \(.labels.alertname // "unknown") (\(.state // "unknown"))"' | head -10
           exit 1
         fi
 
@@ -206,7 +206,7 @@ jobs:
         echo "✅ Found $alerts_length alerts in Alertmanager"
         
         # Safely check for MySQL alert
-        am_mysql_alert=$(echo "$am_alerts" | jq '.[] | select(.labels.alertname == "MySQLDown")' 2>/dev/null || echo "null")
+        am_mysql_alert=$(echo "$am_alerts" | jq '.[] | .[] | select(.labels.alertname == "MySQLDown")' 2>/dev/null || echo "null")
         if [[ -n "$am_mysql_alert" && "$am_mysql_alert" != "null" && "$am_mysql_alert" != "" ]]; then
           echo "✅ MySQLDown alert reached Alertmanager"
           echo "📋 Alert details:"
@@ -214,7 +214,7 @@ jobs:
         else
           echo "❌ MySQLDown alert not in Alertmanager"
           echo "📋 All alerts in Alertmanager:"
-          echo "$am_alerts" | jq -r '.[] | "- \(.labels.alertname // "unknown") (\(.status.state // "unknown"))"' | head -10
+          echo "$am_alerts" | jq -r '.[] | .[] | "- \(.labels.alertname // "unknown") (\(.status.state // "unknown"))"' | head -10
           exit 1
         fi
 
