@@ -45,8 +45,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
         pass
 
 if __name__ == '__main__':
-    server = HTTPServer(('localhost', 5001), WebhookHandler)
-    print("Webhook receiver running on http://localhost:5001")
+    # Bind to all interfaces so containers can reach it
+    server = HTTPServer(('0.0.0.0', 5001), WebhookHandler)
+    print("Webhook receiver running on http://0.0.0.0:5001")
     print("Press Ctrl+C to stop")
     try:
         server.serve_forever()

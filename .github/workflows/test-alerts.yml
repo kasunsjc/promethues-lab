@@ -35,6 +35,19 @@ jobs:
     - name: 🚀 Start monitoring stack
       run: |
         echo "🚀 Starting monitoring stack..."
+        
+        # Get the host gateway IP for containers to reach host services
+        GATEWAY_IP=$(docker network ls --filter name=default -q | xargs docker network inspect | jq -r '.[0].IPAM.Config[0].Gateway' 2>/dev/null || echo "172.17.0.1")
+        echo "🔍 Using gateway IP for webhook: $GATEWAY_IP"
+        
+        # Create a temporary alertmanager config with the correct IP
+        cp config/alertmanager.yml config/alertmanager.yml.backup
+        sed "s/host.docker.internal/$GATEWAY_IP/g" config/alertmanager.yml > config/alertmanager.temp.yml
+        mv config/alertmanager.temp.yml config/alertmanager.yml
+        
+        echo "📋 Updated alertmanager.yml for CI:"
+        grep -A 5 -B 5 "webhook_configs" config/alertmanager.yml
+        
         docker compose up -d
         
         echo "⏳ Waiting for services to initialize..."
@@ -80,6 +93,16 @@ jobs:
           echo "❌ Webhook receiver failed to start"
           exit 1
         fi
+        
+        # Get the host IP that containers can reach
+        HOST_IP=$(ip route show default | awk '/default/ {print $3}')
+        echo "🔍 Host IP for containers: $HOST_IP"
+        
+        # Test if containers can reach the webhook
+        echo "🔍 Testing webhook accessibility from containers..."
+        docker run --rm --network="$(docker compose ps --format json | jq -r '.[0].Networks' | head -1)" alpine/curl:latest \
+          curl -f http://$HOST_IP:5001/ -d '{"test": "connection"}' -H "Content-Type: application/json" || \
+          echo "⚠️ Warning: Containers may not be able to reach webhook at $HOST_IP:5001"
         
     - name: 🚨 Test MySQL Down Alert
       run: |
@@ -219,6 +242,15 @@ jobs:
         fi
 
         # Check webhook received the alert
+        echo "🔍 Checking webhook activity..."
+        echo "📋 Webhook output log size: $(wc -l < webhook_output.log) lines"
+        echo "📋 Last 10 lines of webhook log:"
+        tail -10 webhook_output.log
+        
+        # Check Alertmanager logs for webhook activity
+        echo "📋 Checking Alertmanager logs for webhook activity:"
+        docker compose logs alertmanager | grep -i webhook | tail -10 || echo "No webhook activity in Alertmanager logs"
+        
         if grep -q "MySQLDown" webhook_output.log; then
           echo "✅ Webhook received MySQLDown alert"
           echo "📋 Webhook log excerpt:"
@@ -227,6 +259,19 @@ jobs:
           echo "❌ Webhook did not receive MySQLDown alert"
           echo "📋 Full webhook log:"
           cat webhook_output.log
+          
+          # Additional debugging
+          echo "📋 Checking if webhook process is still running:"
+          if [[ -f webhook_pid.txt ]] && kill -0 $(cat webhook_pid.txt) 2>/dev/null; then
+            echo "✅ Webhook process is still running"
+          else
+            echo "❌ Webhook process has died"
+          fi
+          
+          # Check Alertmanager status
+          echo "📋 Alertmanager status endpoint:"
+          curl -s http://localhost:9093/api/v1/status | jq '.'
+          
           exit 1
         fi
 
@@ -330,6 +375,11 @@ jobs:
         # Stop webhook receiver
         if [[ -f webhook_pid.txt ]]; then
           kill $(cat webhook_pid.txt) || true
+        fi
+        
+        # Restore original alertmanager config
+        if [[ -f config/alertmanager.yml.backup ]]; then
+          mv config/alertmanager.yml.backup config/alertmanager.yml
         fi
         
         # Stop all services
