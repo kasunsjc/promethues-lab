@@ -1,0 +1,265 @@
+# Recording Rules for Prometheus Monitoring Stack
+# This file contains pre-computed aggregations for improved query performance
+
+groups:
+  # System and Node Exporter Recording Rules
+  - name: node_recording_rules
+    interval: 30s
+    rules:
+      # CPU Usage Percentage (5-minute average)
+      - record: node:cpu_utilization:rate5m
+        expr: (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)) * 100
+        labels:
+          type: system
+
+      # Memory Usage Percentage
+      - record: node:memory_utilization:percent
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+        labels:
+          type: system
+
+      # Disk Usage Percentage (root filesystem)
+      - record: node:disk_utilization:percent
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100
+        labels:
+          type: system
+
+      # Network Traffic Rate (bytes per second)
+      - record: node:network_receive_bytes:rate5m
+        expr: rate(node_network_receive_bytes_total[5m])
+        labels:
+          type: network
+
+      - record: node:network_transmit_bytes:rate5m
+        expr: rate(node_network_transmit_bytes_total[5m])
+        labels:
+          type: network
+
+      # Load Average per CPU
+      - record: node:load_per_cpu:ratio
+        expr: node_load1 / count(node_cpu_seconds_total{mode="idle"}) by (instance)
+        labels:
+          type: system
+
+      # Disk I/O Rate
+      - record: node:disk_read_bytes:rate5m
+        expr: rate(node_disk_read_bytes_total[5m])
+        labels:
+          type: disk
+
+      - record: node:disk_write_bytes:rate5m
+        expr: rate(node_disk_written_bytes_total[5m])
+        labels:
+          type: disk
+
+  # MySQL Recording Rules
+  - name: mysql_recording_rules
+    interval: 30s
+    rules:
+      # MySQL Connection Usage Percentage
+      - record: mysql:connection_utilization:percent
+        expr: (mysql_global_status_threads_connected / mysql_global_variables_max_connections) * 100
+        labels:
+          service: mysql
+
+      # MySQL Query Rate (queries per second)
+      - record: mysql:queries:rate5m
+        expr: rate(mysql_global_status_questions[5m])
+        labels:
+          service: mysql
+
+      # MySQL Slow Query Rate
+      - record: mysql:slow_queries:rate5m
+        expr: rate(mysql_global_status_slow_queries[5m])
+        labels:
+          service: mysql
+
+      # MySQL Read/Write Ratio
+      - record: mysql:read_write_ratio
+        expr: rate(mysql_global_status_com_select[5m]) / (rate(mysql_global_status_com_insert[5m]) + rate(mysql_global_status_com_update[5m]) + rate(mysql_global_status_com_delete[5m]))
+        labels:
+          service: mysql
+
+      # MySQL Buffer Pool Efficiency
+      - record: mysql:innodb_buffer_pool_hit_rate:percent
+        expr: (mysql_global_status_innodb_buffer_pool_read_requests - mysql_global_status_innodb_buffer_pool_reads) / mysql_global_status_innodb_buffer_pool_read_requests * 100
+        labels:
+          service: mysql
+
+      # MySQL Table Locks Rate
+      - record: mysql:table_locks_waited:rate5m
+        expr: rate(mysql_global_status_table_locks_waited[5m])
+        labels:
+          service: mysql
+
+      # MySQL Aborted Connections Rate
+      - record: mysql:aborted_connections:rate5m
+        expr: rate(mysql_global_status_aborted_connects[5m])
+        labels:
+          service: mysql
+
+  # Nginx Recording Rules  
+  - name: nginx_recording_rules
+    interval: 30s
+    rules:
+      # Nginx Request Rate (requests per second)
+      - record: nginx:requests:rate5m
+        expr: rate(nginx_http_requests_total[5m])
+        labels:
+          service: nginx
+
+      # Nginx Error Rate Percentage
+      - record: nginx:error_rate:percent
+        expr: (rate(nginx_http_requests_total{status=~"4.."}[5m]) + rate(nginx_http_requests_total{status=~"5.."}[5m])) / rate(nginx_http_requests_total[5m]) * 100
+        labels:
+          service: nginx
+
+      # Nginx 5xx Error Rate
+      - record: nginx:server_errors:rate5m
+        expr: rate(nginx_http_requests_total{status=~"5.."}[5m])
+        labels:
+          service: nginx
+
+      # Nginx 4xx Error Rate  
+      - record: nginx:client_errors:rate5m
+        expr: rate(nginx_http_requests_total{status=~"4.."}[5m])
+        labels:
+          service: nginx
+
+      # Nginx Active Connections
+      - record: nginx:connections_active:current
+        expr: nginx_connections_active
+        labels:
+          service: nginx
+
+      # Nginx Connection Rate
+      - record: nginx:connections_accepted:rate5m
+        expr: rate(nginx_connections_accepted[5m])
+        labels:
+          service: nginx
+
+  # Prometheus Self-Monitoring Recording Rules
+  - name: prometheus_recording_rules
+    interval: 30s
+    rules:
+      # Prometheus Ingestion Rate
+      - record: prometheus:samples_ingested:rate5m
+        expr: rate(prometheus_tsdb_samples_appended_total[5m])
+        labels:
+          service: prometheus
+
+      # Prometheus Rule Evaluation Duration
+      - record: prometheus:rule_evaluation_duration:avg5m
+        expr: avg(rate(prometheus_rule_evaluation_duration_seconds_sum[5m]) / rate(prometheus_rule_evaluation_duration_seconds_count[5m]))
+        labels:
+          service: prometheus
+
+      # Prometheus Query Duration (95th percentile)
+      - record: prometheus:query_duration:p95
+        expr: histogram_quantile(0.95, rate(prometheus_http_request_duration_seconds_bucket[5m]))
+        labels:
+          service: prometheus
+
+      # Prometheus Scrape Targets Up
+      - record: prometheus:targets_up:count
+        expr: count(up == 1)
+        labels:
+          service: prometheus
+
+      # Prometheus Scrape Targets Down
+      - record: prometheus:targets_down:count
+        expr: count(up == 0)
+        labels:
+          service: prometheus
+
+  # Application Health Overview Rules
+  - name: health_overview_rules
+    interval: 30s
+    rules:
+      # Overall System Health Score (0-100)
+      - record: stack:health_score:percent
+        expr: |
+          (
+            (count(up{job="node"} == 1) / count(up{job="node"})) * 25 +
+            (count(up{job="mysql"} == 1) / count(up{job="mysql"})) * 25 +
+            (count(up{job="nginx"} == 1) / count(up{job="nginx"})) * 25 +
+            (count(up{job="prometheus"} == 1) / count(up{job="prometheus"})) * 25
+          )
+        labels:
+          type: overview
+
+      # Critical Services Down Count
+      - record: stack:critical_services_down:count
+        expr: count(up{job=~"mysql|nginx|prometheus|alertmanager"} == 0)
+        labels:
+          type: overview
+
+      # Total Memory Usage Across All Nodes
+      - record: stack:memory_usage_total:bytes
+        expr: sum(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+        labels:
+          type: overview
+
+      # Total CPU Usage Across All Nodes
+      - record: stack:cpu_usage_total:percent
+        expr: avg(node:cpu_utilization:rate5m)
+        labels:
+          type: overview
+
+  # Performance Aggregation Rules
+  - name: performance_aggregation_rules
+    interval: 1m
+    rules:
+      # Top 5 CPU Consumers
+      - record: top:cpu_consumers:top5
+        expr: topk(5, node:cpu_utilization:rate5m)
+        labels:
+          type: performance
+
+      # Top 5 Memory Consumers  
+      - record: top:memory_consumers:top5
+        expr: topk(5, node:memory_utilization:percent)
+        labels:
+          type: performance
+
+      # Busiest MySQL Instances (by queries)
+      - record: top:mysql_busiest:top5
+        expr: topk(5, mysql:queries:rate5m)
+        labels:
+          type: performance
+
+      # Busiest Nginx Instances (by requests)
+      - record: top:nginx_busiest:top5
+        expr: topk(5, nginx:requests:rate5m)
+        labels:
+          type: performance
+
+  # SLA and Availability Rules
+  - name: sla_recording_rules
+    interval: 5m
+    rules:
+      # Service Availability (last 24 hours)
+      - record: sla:availability_24h:percent
+        expr: avg_over_time(up[24h]) * 100
+        labels:
+          period: 24h
+
+      # Service Availability (last 7 days)  
+      - record: sla:availability_7d:percent
+        expr: avg_over_time(up[7d]) * 100
+        labels:
+          period: 7d
+
+      # MySQL Uptime Percentage (last 24h)
+      - record: sla:mysql_uptime_24h:percent
+        expr: avg_over_time(up{job="mysql"}[24h]) * 100
+        labels:
+          service: mysql
+          period: 24h
+
+      # Nginx Uptime Percentage (last 24h)
+      - record: sla:nginx_uptime_24h:percent  
+        expr: avg_over_time(up{job="nginx"}[24h]) * 100
+        labels:
+          service: nginx
+          period: 24h
