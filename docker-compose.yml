@@ -260,7 +260,7 @@ services:
 
   # ─── Thanos Sidecar: Long-term Storage Interface ────────────────────
   thanos-sidecar:
-    image: thanosio/thanos:latest
+    image: thanosio/thanos:v0.41.0
     container_name: thanos-sidecar
     restart: unless-stopped
     command:
@@ -281,7 +281,7 @@ services:
 
   # ─── Thanos Query: HA Querying Layer ────────────────────────────────
   thanos-query:
-    image: thanosio/thanos:latest
+    image: thanosio/thanos:v0.41.0
     container_name: thanos-query
     restart: unless-stopped
     command:
