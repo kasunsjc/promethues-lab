@@ -1,18 +1,34 @@
 [
   {
-    "targets": ["example-service-1:8080"],
+    "targets": ["node-exporter:9100"],
     "labels": {
-      "service": "example-service-1",
+      "service": "node-exporter",
       "environment": "lab",
-      "team": "example-team"
+      "team": "infrastructure"
     }
   },
   {
-    "targets": ["example-service-2:9090"],
+    "targets": ["mysql-exporter:9104"],
     "labels": {
-      "service": "example-service-2",
+      "service": "mysql-exporter",
       "environment": "lab",
-      "team": "example-team"
+      "team": "database"
+    }
+  },
+  {
+    "targets": ["ubuntu:9100"],
+    "labels": {
+      "service": "ubuntu",
+      "environment": "lab",
+      "team": "infrastructure"
+    }
+  },
+  {
+    "targets": ["nginx-exporter:9113"],
+    "labels": {
+      "service": "nginx-exporter",
+      "environment": "lab",
+      "team": "web"
     }
   }
 ]

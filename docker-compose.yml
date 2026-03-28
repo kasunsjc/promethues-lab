@@ -274,7 +274,7 @@ services:
       - '--grpc-address=0.0.0.0:10901'
       - '--http-address=0.0.0.0:10902'
     volumes:
-      - prometheus_data:/prometheus
+      - prometheus_data:/prometheus:ro
     ports:
       - "10901:10901"  # gRPC
       - "10902:10902"  # HTTP
