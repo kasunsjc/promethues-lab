@@ -1,7 +1,7 @@
 # 🔭 Prometheus Monitoring Stack
 
 ![Quick Validation](https://github.com/kasunsjc/promethues-lab/actions/workflows/quick-validate.yml/badge.svg)
-![Full Stack Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/validate-demos.yml/badge.svg)
+![Full Stack Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/full-stack-validation.yml/badge.svg)
 ![Alert System Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/test-alerts.yml/badge.svg)
 ![Load Test Validation](https://github.com/kasunsjc/promethues-lab/actions/workflows/load-test-validation.yml/badge.svg)
 
@@ -20,8 +20,8 @@ This repository contains a comprehensive Docker Compose setup for monitoring wit
 - **📝 Promtail**: Agent that ships container logs to Loki
 - **🔭 OpenTelemetry Collector**: Unified telemetry pipeline for traces, metrics, and logs
 - **🔍 BlackBox Exporter**: Endpoint probing (HTTP, TCP, ICMP)
-- **🏗️ Thanos Sidecar**: Long-term storage interface for Prometheus
-- **🔎 Thanos Query**: HA query layer across Prometheus instances
+- **🏗️ Thanos Sidecar**: Exposes Prometheus TSDB blocks to Thanos Query via gRPC StoreAPI (long-term retention requires an object store + compactor, which are not configured in this lab)
+- **🔎 Thanos Query**: HA query layer that federates across Prometheus instances and Thanos stores
 
 ## 🚀 Quick Start
 
@@ -390,12 +390,14 @@ curl "http://localhost:9115/probe?target=mysql:3306&module=tcp_connect"
 ### Configuration
 - BlackBox config: `config/blackbox.yml`
 
-## 🏗️ Thanos (Long-term Storage & HA)
+## 🏗️ Thanos (Query Federation & HA)
 
-Thanos extends Prometheus with long-term storage capabilities and a unified query layer across multiple Prometheus instances.
+This lab runs Thanos Sidecar + Query to provide a Prometheus-compatible query API that deduplicates series across replicas. The sidecar exposes the local Prometheus TSDB via gRPC StoreAPI; Thanos Query federates over it.
+
+> **Note**: Long-term storage (block upload to an object store) is **not** configured here. For durable retention you would also need an object store (e.g. MinIO/S3), `--objstore.config` on the sidecar, and a Thanos Compactor + Store Gateway.
 
 ### Components
-- **Thanos Sidecar**: Runs alongside Prometheus, reads its data, and makes it available via gRPC
+- **Thanos Sidecar**: Runs alongside Prometheus, reads its TSDB, and exposes it via gRPC
 - **Thanos Query**: Provides a Prometheus-compatible query API that federates across multiple sidecars
 
 ### Architecture
@@ -407,7 +409,7 @@ Prometheus → Thanos Sidecar (gRPC:10901) → Thanos Query (UI:10904)
 
 ### Usage
 1. Access Thanos Query UI at [http://localhost:10904](http://localhost:10904)
-2. In Grafana, select the **Thanos** datasource for queries that need long-term data
+2. In Grafana, select the **Thanos** datasource for a deduplicated, federated view of metrics
 3. Thanos Query supports the same PromQL as Prometheus
 
 ### Configuration
@@ -431,7 +433,7 @@ This repository includes comprehensive GitHub Actions workflows to validate the 
   - Shell script syntax
   - Python script syntax
 
-#### **Full Stack Validation** (`validate-demos.yml`)
+#### **Full Stack Validation** (`full-stack-validation.yml`)
 - **Triggers**: Push to main/develop, PRs to main, manual trigger, daily schedule
 - **Duration**: ~15 minutes
 - **Tests**:

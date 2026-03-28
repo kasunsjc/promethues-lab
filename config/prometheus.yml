@@ -46,6 +46,13 @@ scrape_configs:
       - files:
           - '/etc/prometheus/file_sd/*.json'
         refresh_interval: 30s
+    relabel_configs:
+      # The "job" field in targets.json is advisory; rename it to "service"
+      # so it doesn't conflict with the Prometheus "job" label set by job_name.
+      - source_labels: [job]
+        target_label: service
+      - target_label: job
+        replacement: file-sd-targets
 
   # OpenTelemetry Collector metrics
   - job_name: 'otel-collector'

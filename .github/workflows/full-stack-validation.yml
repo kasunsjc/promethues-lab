@@ -62,7 +62,7 @@ jobs:
             -v "$(pwd)/config/loki-config.yml:/etc/loki/local-config.yaml:ro" \
             grafana/loki:latest \
             -config.file=/etc/loki/local-config.yaml \
-            -verify-config || true
+            -verify-config
           echo "✅ Loki config structure validated"
 
       - name: ✅ Validate OTel Collector Config
@@ -78,45 +78,19 @@ jobs:
       - name: ✅ Validate BlackBox Exporter Config
         run: |
           echo "🔍 Validating BlackBox Exporter configuration..."
-          # Validate YAML structure
-          python3 -c "
-          import yaml, sys
-          with open('config/blackbox.yml') as f:
-              cfg = yaml.safe_load(f)
-          assert 'modules' in cfg, 'Missing modules key'
-          for name in ['http_2xx', 'tcp_connect', 'icmp_check']:
-              assert name in cfg['modules'], f'Missing module: {name}'
-          print('✅ BlackBox config structure is valid')
-          "
+          python3 -m pip install --quiet pyyaml
+          python3 scripts/validate_configs.py
 
       - name: ✅ Validate File SD Targets
         run: |
           echo "🔍 Validating file-based service discovery targets..."
-          python3 -c "
-          import json, sys
-          with open('config/file_sd/targets.json') as f:
-              targets = json.load(f)
-          assert isinstance(targets, list), 'targets.json must be a JSON array'
-          for entry in targets:
-              assert 'targets' in entry, f'Missing targets key in entry: {entry}'
-              assert 'labels' in entry, f'Missing labels key in entry: {entry}'
-              assert isinstance(entry['targets'], list), 'targets must be a list'
-          print(f'✅ File SD config valid: {len(targets)} target groups')
-          "
+          python3 scripts/validate_configs.py
 
       - name: ✅ Validate Grafana Datasources
         run: |
           echo "🔍 Validating Grafana datasource provisioning..."
-          for ds in grafana/provisioning/datasources/*.yml; do
-            python3 -c "
-          import yaml, sys
-          with open('$ds') as f:
-              cfg = yaml.safe_load(f)
-          assert 'apiVersion' in cfg, 'Missing apiVersion'
-          assert 'datasources' in cfg, 'Missing datasources'
-          print(f'  ✅ $(basename $ds) is valid')
-          "
-          done
+          python3 -m pip install --quiet pyyaml
+          python3 scripts/validate_configs.py
 
   deploy-and-test:
     name: 🚀 Deploy & Test Full Stack
@@ -252,22 +226,7 @@ jobs:
           echo "⏳ Waiting for scrape cycles..."
           sleep 30
           echo "=== Prometheus Targets ==="
-          TARGETS=$(curl -s http://localhost:9090/api/v1/targets | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          active = data['data']['activeTargets']
-          up_count = 0
-          total = len(active)
-          for t in active:
-              status = '✅' if t['health'] == 'up' else '⚠️'
-              if t['health'] == 'up': up_count += 1
-              print(f\"  {status} {t['labels'].get('job', 'unknown'):30s} {t['health']}\")
-          print(f'\nTotal: {up_count}/{total} targets up')
-          if up_count < total * 0.5:
-              print('❌ Less than 50% of targets are up')
-              sys.exit(1)
-          ")
-          echo "$TARGETS"
+          python3 scripts/validate_runtime.py prometheus-targets http://localhost:9090
 
       - name: 🔍 Validate BlackBox probes
         run: |
@@ -293,20 +252,7 @@ jobs:
         run: |
           echo "=== Loki Log Ingestion ==="
           sleep 10
-          # Check if Loki has any log streams
-          STREAMS=$(curl -s "http://localhost:3100/loki/api/v1/label" 2>/dev/null || echo '{"data":[]}')
-          echo "$STREAMS" | python3 -c "
-          import json, sys
-          try:
-              data = json.load(sys.stdin)
-              labels = data.get('data', [])
-              if labels:
-                  print(f'  ✅ Loki has {len(labels)} label(s): {labels}')
-              else:
-                  print('  ⚠️ Loki has no labels yet (Promtail may still be initializing)')
-          except:
-              print('  ⚠️ Could not query Loki labels')
-          "
+          python3 scripts/validate_runtime.py loki-labels http://localhost:3100
 
       - name: 🔭 Validate OTel Collector pipeline
         run: |
@@ -334,75 +280,18 @@ jobs:
       - name: 🔎 Validate Thanos Query
         run: |
           echo "=== Thanos Query ==="
-          # Check Thanos can see the Prometheus store
-          STORES=$(curl -s http://localhost:10904/api/v1/stores 2>/dev/null || echo '{}')
-          echo "$STORES" | python3 -c "
-          import json, sys
-          try:
-              data = json.load(sys.stdin)
-              stores = data.get('data', {}).get('statuses', data.get('data', []))
-              if stores:
-                  print(f'  ✅ Thanos Query sees {len(stores)} store(s)')
-              else:
-                  print('  ⚠️ Thanos Query has no stores yet (sidecar may be connecting)')
-          except:
-              print('  ⚠️ Could not query Thanos stores')
-          "
-
-          # Verify Thanos can execute PromQL
-          RESULT=$(curl -s "http://localhost:10904/api/v1/query?query=up" 2>/dev/null || echo '{}')
-          echo "$RESULT" | python3 -c "
-          import json, sys
-          try:
-              data = json.load(sys.stdin)
-              if data.get('status') == 'success':
-                  results = data.get('data', {}).get('result', [])
-                  print(f'  ✅ Thanos Query executed PromQL successfully ({len(results)} results)')
-              else:
-                  print('  ⚠️ Thanos Query returned non-success status')
-          except:
-              print('  ⚠️ Could not execute Thanos query')
-          "
+          python3 scripts/validate_runtime.py thanos-stores http://localhost:10904
+          python3 scripts/validate_runtime.py thanos-query http://localhost:10904
 
       - name: 📁 Validate File-Based Service Discovery
         run: |
           echo "=== File-Based Service Discovery ==="
-          # Check if file SD targets are loaded in Prometheus
-          curl -s http://localhost:9090/api/v1/targets | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          active = data['data']['activeTargets']
-          file_sd = [t for t in active if 'file-sd' in t.get('scrapePool', '')]
-          if file_sd:
-              print(f'  ✅ File SD loaded {len(file_sd)} target(s)')
-              for t in file_sd:
-                  print(f\"    - {t['labels'].get('job', 'unknown')}: {t['health']}\")
-          else:
-              print('  ⚠️ No file SD targets found (may use different scrape pool name)')
-              # Show all scrape pools for debugging
-              pools = set(t.get('scrapePool', 'unknown') for t in active)
-              print(f'    Available pools: {pools}')
-          "
+          python3 scripts/validate_runtime.py file-sd-targets http://localhost:9090
 
       - name: 📊 Validate Grafana datasources
         run: |
           echo "=== Grafana Datasources ==="
-          DS=$(curl -s -u admin:grafana http://localhost:3000/api/datasources 2>/dev/null || echo '[]')
-          echo "$DS" | python3 -c "
-          import json, sys
-          try:
-              datasources = json.load(sys.stdin)
-              expected = ['Prometheus', 'Loki', 'Thanos', 'InfluxDB']
-              found = [ds['name'] for ds in datasources]
-              for name in expected:
-                  if name in found:
-                      print(f'  ✅ {name} datasource provisioned')
-                  else:
-                      print(f'  ⚠️ {name} datasource not found')
-              print(f'\n  Total datasources: {len(found)}')
-          except:
-              print('  ⚠️ Could not query Grafana datasources')
-          "
+          python3 scripts/validate_runtime.py grafana-datasources http://localhost:3000
 
       - name: 📋 Generate test report
         if: always()

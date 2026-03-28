@@ -1,50 +1,18 @@
 [
   {
-    "targets": ["node-exporter:9100"],
+    "targets": ["example-service-1:8080"],
     "labels": {
-      "job": "node-exporter",
+      "service": "example-service-1",
       "environment": "lab",
-      "team": "infrastructure"
+      "team": "example-team"
     }
   },
   {
-    "targets": ["mysql-exporter:9104"],
+    "targets": ["example-service-2:9090"],
     "labels": {
-      "job": "mysql",
+      "service": "example-service-2",
       "environment": "lab",
-      "team": "database"
-    }
-  },
-  {
-    "targets": ["ubuntu:9100"],
-    "labels": {
-      "job": "ubuntu",
-      "environment": "lab",
-      "team": "infrastructure"
-    }
-  },
-  {
-    "targets": ["nginx-exporter:9113"],
-    "labels": {
-      "job": "nginx",
-      "environment": "lab",
-      "team": "web"
-    }
-  },
-  {
-    "targets": ["otel-collector:8888"],
-    "labels": {
-      "job": "otel-collector",
-      "environment": "lab",
-      "team": "observability"
-    }
-  },
-  {
-    "targets": ["blackbox-exporter:9115"],
-    "labels": {
-      "job": "blackbox",
-      "environment": "lab",
-      "team": "observability"
+      "team": "example-team"
     }
   }
 ]

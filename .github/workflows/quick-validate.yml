@@ -91,56 +91,6 @@ jobs:
     - name: ✅ Validate New Config Files
       run: |
         echo "🔍 Validating additional configuration files..."
-
-        # Validate Loki config YAML
-        python3 -c "
-        import yaml
-        with open('config/loki-config.yml') as f:
-            cfg = yaml.safe_load(f)
-        assert 'server' in cfg, 'Missing server config'
-        assert 'schema_config' in cfg, 'Missing schema_config'
-        print('  ✅ loki-config.yml is valid YAML')
-        "
-
-        # Validate Promtail config YAML
-        python3 -c "
-        import yaml
-        with open('config/promtail-config.yml') as f:
-            cfg = yaml.safe_load(f)
-        assert 'clients' in cfg, 'Missing clients config'
-        assert 'scrape_configs' in cfg, 'Missing scrape_configs'
-        print('  ✅ promtail-config.yml is valid YAML')
-        "
-
-        # Validate OTel Collector config YAML
-        python3 -c "
-        import yaml
-        with open('config/otel-collector-config.yml') as f:
-            cfg = yaml.safe_load(f)
-        assert 'receivers' in cfg, 'Missing receivers'
-        assert 'exporters' in cfg, 'Missing exporters'
-        assert 'service' in cfg, 'Missing service'
-        print('  ✅ otel-collector-config.yml is valid YAML')
-        "
-
-        # Validate BlackBox config YAML
-        python3 -c "
-        import yaml
-        with open('config/blackbox.yml') as f:
-            cfg = yaml.safe_load(f)
-        assert 'modules' in cfg, 'Missing modules'
-        print('  ✅ blackbox.yml is valid YAML')
-        "
-
-        # Validate file_sd targets JSON
-        python3 -c "
-        import json
-        with open('config/file_sd/targets.json') as f:
-            targets = json.load(f)
-        assert isinstance(targets, list), 'Must be a JSON array'
-        for entry in targets:
-            assert 'targets' in entry and 'labels' in entry
-        print(f'  ✅ targets.json is valid ({len(targets)} target groups)')
-        "
-
+        python3 -m pip install --quiet pyyaml
+        python3 scripts/validate_configs.py
         echo "✅ All additional configs validated"

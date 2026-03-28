@@ -11,7 +11,7 @@ volumes:
   k6_data: {}
   alertmanager_data: {}
   loki_data: {}
-  thanos_data: {}
+  promtail_positions: {}
 
 services:
   node-exporter:
@@ -212,6 +212,8 @@ services:
       - monitoring
 
   # ─── Promtail: Log Collector for Loki ────────────────────────────────
+  # NOTE: The Docker socket grants root-equivalent access to the Docker host.
+  # This is acceptable for a local lab environment; avoid in production.
   promtail:
     image: grafana/promtail:latest
     container_name: promtail
@@ -219,7 +221,9 @@ services:
     volumes:
       - ./config/promtail-config.yml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/log:/var/log:ro
+      - promtail_positions:/var/lib/promtail
     command: -config.file=/etc/promtail/config.yml
     networks:
       - monitoring
@@ -258,7 +262,7 @@ services:
     networks:
       - monitoring
 
-  # ─── Thanos Sidecar: Long-term Storage Interface ────────────────────
+  # ─── Thanos Sidecar: StoreAPI view over local Prometheus TSDB ──────
   thanos-sidecar:
     image: thanosio/thanos:v0.41.0
     container_name: thanos-sidecar
@@ -270,7 +274,7 @@ services:
       - '--grpc-address=0.0.0.0:10901'
       - '--http-address=0.0.0.0:10902'
     volumes:
-      - prometheus_data:/prometheus:ro
+      - prometheus_data:/prometheus
     ports:
       - "10901:10901"  # gRPC
       - "10902:10902"  # HTTP
@@ -289,6 +293,7 @@ services:
       - '--http-address=0.0.0.0:9090'
       - '--grpc-address=0.0.0.0:10903'
       - '--endpoint=thanos-sidecar:10901'
+      - '--query.replica-label=replica'
     ports:
       - "10904:9090"   # Thanos Query UI
     networks:
