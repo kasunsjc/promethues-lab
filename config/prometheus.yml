@@ -31,6 +31,13 @@ scrape_configs:
       - files:
           - '/etc/prometheus/file_sd/*.json'
         refresh_interval: 30s
+    relabel_configs:
+      # The "job" label in Prometheus is fixed by job_name above.
+      # Per-target grouping is expressed via the "service" label in targets.json.
+      # This rule defensively renames any advisory "job" field in the JSON to "service"
+      # so accidental job= labels don't shadow the Prometheus job label.
+      - source_labels: [job]
+        target_label: service
 
   # OpenTelemetry Collector metrics
   - job_name: 'otel-collector'
