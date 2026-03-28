@@ -10,6 +10,8 @@ volumes:
   mysql_data: {}
   k6_data: {}
   alertmanager_data: {}
+  loki_data: {}
+  thanos_data: {}
 
 services:
   node-exporter:
@@ -44,6 +46,8 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
       - '--alertmanager.notification-queue-capacity=10000'
+      - '--storage.tsdb.min-block-duration=2h'
+      - '--storage.tsdb.max-block-duration=2h'
     ports:
       - "9090:9090"
     networks:
@@ -122,6 +126,8 @@ services:
       - "3000:3000"
     networks:
       - monitoring
+    depends_on:
+      - loki
 
   ubuntu:
     image: ubuntu:latest
@@ -190,3 +196,102 @@ services:
       - INFLUXDB_HTTP_AUTH_ENABLED=false
     networks:
       - monitoring
+
+  # ─── Loki: Log Aggregation ───────────────────────────────────────────
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    volumes:
+      - ./config/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - monitoring
+
+  # ─── Promtail: Log Collector for Loki ────────────────────────────────
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - ./config/promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log:/var/log:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring
+    depends_on:
+      - loki
+
+  # ─── OpenTelemetry Collector ─────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    restart: unless-stopped
+    volumes:
+      - ./config/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"    # OTLP gRPC receiver
+      - "4318:4318"    # OTLP HTTP receiver
+      - "8888:8888"    # OTel Collector metrics
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+      - loki
+
+  # ─── BlackBox Exporter: Endpoint Probing ─────────────────────────────
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    volumes:
+      - ./config/blackbox.yml:/etc/blackbox_exporter/config.yml
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+    ports:
+      - "9115:9115"
+    networks:
+      - monitoring
+
+  # ─── Thanos Sidecar: Long-term Storage Interface ────────────────────
+  thanos-sidecar:
+    image: thanosio/thanos:latest
+    container_name: thanos-sidecar
+    restart: unless-stopped
+    command:
+      - 'sidecar'
+      - '--tsdb.path=/prometheus'
+      - '--prometheus.url=http://prometheus:9090'
+      - '--grpc-address=0.0.0.0:10901'
+      - '--http-address=0.0.0.0:10902'
+    volumes:
+      - prometheus_data:/prometheus:ro
+    ports:
+      - "10901:10901"  # gRPC
+      - "10902:10902"  # HTTP
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  # ─── Thanos Query: HA Querying Layer ────────────────────────────────
+  thanos-query:
+    image: thanosio/thanos:latest
+    container_name: thanos-query
+    restart: unless-stopped
+    command:
+      - 'query'
+      - '--http-address=0.0.0.0:9090'
+      - '--grpc-address=0.0.0.0:10903'
+      - '--endpoint=thanos-sidecar:10901'
+    ports:
+      - "10904:9090"   # Thanos Query UI
+    networks:
+      - monitoring
+    depends_on:
+      - thanos-sidecar

@@ -100,3 +100,41 @@ groups:
         annotations:
           summary: "High error rate on Nginx {{ $labels.instance }}"
           description: "Nginx error rate is above 10% on {{ $labels.instance }}."
+
+  - name: blackbox_alerts
+    rules:
+      - alert: EndpointDown
+        expr: probe_success == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Endpoint {{ $labels.instance }} is down"
+          description: "BlackBox probe failed for {{ $labels.instance }} for more than 1 minute."
+
+      - alert: EndpointSlowResponse
+        expr: probe_http_duration_seconds{phase="transfer"} > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow response from {{ $labels.instance }}"
+          description: "Endpoint {{ $labels.instance }} response time is above 2 seconds."
+
+      - alert: SSLCertExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSL certificate expiring soon for {{ $labels.instance }}"
+          description: "SSL certificate for {{ $labels.instance }} expires in less than 30 days."
+
+      - alert: HTTPStatusCodeFailure
+        expr: probe_http_status_code != 200 and probe_http_status_code != 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unexpected HTTP status for {{ $labels.instance }}"
+          description: "Endpoint {{ $labels.instance }} returned HTTP {{ $value }}."
