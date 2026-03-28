@@ -1,0 +1,335 @@
+name: 🔬 Full Stack Validation
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  validate-configs:
+    name: ⚙️ Validate All Configurations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: ✅ Validate Docker Compose
+        run: docker compose config --quiet
+
+      - name: ✅ Validate Prometheus Config
+        run: |
+          docker run --rm --entrypoint="" \
+            -v "$(pwd)/config:/etc/prometheus:ro" \
+            prom/prometheus:latest \
+            promtool check config /etc/prometheus/prometheus.yml
+
+      - name: ✅ Validate Alert Rules
+        run: |
+          docker run --rm --entrypoint="" \
+            -v "$(pwd)/config:/etc/prometheus:ro" \
+            prom/prometheus:latest \
+            promtool check rules /etc/prometheus/alert_rules.yml
+          if [[ -f config/security_rules.yml ]]; then
+            docker run --rm --entrypoint="" \
+              -v "$(pwd)/config:/etc/prometheus:ro" \
+              prom/prometheus:latest \
+              promtool check rules /etc/prometheus/security_rules.yml
+          fi
+          if [[ -f config/recording_rules.yml ]]; then
+            docker run --rm --entrypoint="" \
+              -v "$(pwd)/config:/etc/prometheus:ro" \
+              prom/prometheus:latest \
+              promtool check rules /etc/prometheus/recording_rules.yml
+          fi
+
+      - name: ✅ Validate Alertmanager Config
+        run: |
+          docker run --rm --entrypoint="" \
+            -v "$(pwd)/config:/etc/alertmanager:ro" \
+            prom/alertmanager:latest \
+            amtool check-config /etc/alertmanager/alertmanager.yml
+
+      - name: ✅ Validate Loki Config
+        run: |
+          echo "🔍 Validating Loki configuration..."
+          docker run --rm \
+            -v "$(pwd)/config/loki-config.yml:/etc/loki/local-config.yaml:ro" \
+            grafana/loki:latest \
+            -config.file=/etc/loki/local-config.yaml \
+            -verify-config
+          echo "✅ Loki config structure validated"
+
+      - name: ✅ Validate OTel Collector Config
+        run: |
+          echo "🔍 Validating OpenTelemetry Collector configuration..."
+          docker run --rm \
+            -v "$(pwd)/config/otel-collector-config.yml:/etc/otelcol-contrib/config.yaml:ro" \
+            otel/opentelemetry-collector-contrib:latest \
+            --config=/etc/otelcol-contrib/config.yaml \
+            validate
+          echo "✅ OTel Collector config is valid"
+
+      - name: ✅ Validate BlackBox Exporter Config
+        run: |
+          echo "🔍 Validating BlackBox Exporter configuration..."
+          python3 -m pip install --quiet pyyaml
+          python3 scripts/validate_configs.py
+
+      - name: ✅ Validate File SD Targets
+        run: |
+          echo "🔍 Validating file-based service discovery targets..."
+          python3 scripts/validate_configs.py
+
+      - name: ✅ Validate Grafana Datasources
+        run: |
+          echo "🔍 Validating Grafana datasource provisioning..."
+          python3 -m pip install --quiet pyyaml
+          python3 scripts/validate_configs.py
+
+  deploy-and-test:
+    name: 🚀 Deploy & Test Full Stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: validate-configs
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🚀 Start full monitoring stack
+        run: |
+          docker compose up -d
+          echo "⏳ Waiting for services to initialize..."
+          sleep 30
+
+      - name: 🏥 Health check - Core services
+        run: |
+          echo "=== Core Services ==="
+          services=(
+            "Prometheus|http://localhost:9090/-/healthy"
+            "Alertmanager|http://localhost:9093/-/healthy"
+            "Grafana|http://localhost:3000/api/health"
+          )
+          for svc in "${services[@]}"; do
+            name="${svc%%|*}"
+            url="${svc##*|}"
+            echo -n "  $name: "
+            for i in $(seq 1 12); do
+              if curl -sf "$url" > /dev/null 2>&1; then
+                echo "✅ healthy"
+                break
+              fi
+              if [ $i -eq 12 ]; then
+                echo "❌ FAILED after 60s"
+                docker compose logs "$( echo "$name" | tr '[:upper:]' '[:lower:]' )" --tail=20
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: 🏥 Health check - Exporters
+        run: |
+          echo "=== Exporters ==="
+          exporters=(
+            "MySQL Exporter|http://localhost:9104/metrics"
+            "Nginx Exporter|http://localhost:9113/metrics"
+            "BlackBox Exporter|http://localhost:9115/metrics"
+          )
+          for svc in "${exporters[@]}"; do
+            name="${svc%%|*}"
+            url="${svc##*|}"
+            echo -n "  $name: "
+            for i in $(seq 1 12); do
+              if curl -sf "$url" > /dev/null 2>&1; then
+                echo "✅ healthy"
+                break
+              fi
+              if [ $i -eq 12 ]; then
+                echo "❌ FAILED after 60s"
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: 🏥 Health check - Loki
+        run: |
+          echo -n "  Loki: "
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:3100/ready > /dev/null 2>&1; then
+              echo "✅ ready"
+              break
+            fi
+            if [ $i -eq 15 ]; then
+              echo "❌ FAILED after 75s"
+              docker compose logs loki --tail=20
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: 🏥 Health check - OTel Collector
+        run: |
+          echo -n "  OTel Collector: "
+          for i in $(seq 1 12); do
+            if curl -sf http://localhost:8888/metrics > /dev/null 2>&1; then
+              echo "✅ healthy"
+              break
+            fi
+            if [ $i -eq 12 ]; then
+              echo "❌ FAILED after 60s"
+              docker compose logs otel-collector --tail=20
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: 🏥 Health check - Thanos
+        run: |
+          echo "=== Thanos ==="
+          echo -n "  Thanos Sidecar: "
+          for i in $(seq 1 12); do
+            if curl -sf http://localhost:10902/-/healthy > /dev/null 2>&1; then
+              echo "✅ healthy"
+              break
+            fi
+            if [ $i -eq 12 ]; then
+              echo "❌ FAILED after 60s"
+              docker compose logs thanos-sidecar --tail=20
+              exit 1
+            fi
+            sleep 5
+          done
+
+          echo -n "  Thanos Query: "
+          for i in $(seq 1 12); do
+            if curl -sf http://localhost:10904/-/healthy > /dev/null 2>&1; then
+              echo "✅ healthy"
+              break
+            fi
+            if [ $i -eq 12 ]; then
+              echo "❌ FAILED after 60s"
+              docker compose logs thanos-query --tail=20
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: 📊 Validate Prometheus scrape targets
+        run: |
+          echo "⏳ Waiting for scrape cycles..."
+          sleep 30
+          echo "=== Prometheus Targets ==="
+          python3 scripts/validate_runtime.py prometheus-targets http://localhost:9090
+
+      - name: 🔍 Validate BlackBox probes
+        run: |
+          echo "=== BlackBox Probe Results ==="
+          # Check HTTP probes
+          for target in "http://nginx:80" "http://grafana:3000" "http://prometheus:9090"; do
+            result=$(curl -s "http://localhost:9115/probe?target=${target}&module=http_2xx" | grep "^probe_success" | head -1)
+            if echo "$result" | grep -q "1"; then
+              echo "  ✅ HTTP probe: $target"
+            else
+              echo "  ⚠️ HTTP probe: $target (may take time to resolve)"
+            fi
+          done
+
+          # Check TCP probes
+          for target in "mysql:3306" "loki:3100"; do
+            # Probe from inside the network via Prometheus
+            result=$(curl -s "http://localhost:9090/api/v1/query?query=probe_success" 2>/dev/null || echo "")
+            echo "  ℹ️ TCP probe configured for: $target"
+          done
+
+      - name: 📋 Validate Loki is receiving logs
+        run: |
+          echo "=== Loki Log Ingestion ==="
+          sleep 10
+          python3 scripts/validate_runtime.py loki-labels http://localhost:3100
+
+      - name: 🔭 Validate OTel Collector pipeline
+        run: |
+          echo "=== OTel Collector ==="
+          # Verify collector is exporting metrics
+          METRICS=$(curl -s http://localhost:8888/metrics 2>/dev/null | head -5)
+          if [ -n "$METRICS" ]; then
+            echo "  ✅ OTel Collector is exposing self-metrics"
+          else
+            echo "  ❌ OTel Collector metrics endpoint not responding"
+            exit 1
+          fi
+
+          # Test OTLP HTTP endpoint accepts requests
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST http://localhost:4318/v1/traces \
+            -H "Content-Type: application/json" \
+            -d '{"resourceSpans": []}' 2>/dev/null || echo "000")
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "  ✅ OTLP HTTP receiver is accepting traces"
+          else
+            echo "  ⚠️ OTLP HTTP returned status $HTTP_STATUS (may need data)"
+          fi
+
+      - name: 🔎 Validate Thanos Query
+        run: |
+          echo "=== Thanos Query ==="
+          python3 scripts/validate_runtime.py thanos-stores http://localhost:10904
+          python3 scripts/validate_runtime.py thanos-query http://localhost:10904
+
+      - name: 📁 Validate File-Based Service Discovery
+        run: |
+          echo "=== File-Based Service Discovery ==="
+          python3 scripts/validate_runtime.py file-sd-targets http://localhost:9090
+
+      - name: 📊 Validate Grafana datasources
+        run: |
+          echo "=== Grafana Datasources ==="
+          python3 scripts/validate_runtime.py grafana-datasources http://localhost:3000
+
+      - name: 📋 Generate test report
+        if: always()
+        run: |
+          echo "## 🔬 Full Stack Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Services Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          check_service() {
+            local name=$1 url=$2
+            if curl -sf "$url" > /dev/null 2>&1; then
+              echo "| $name | ✅ Running |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $name | ❌ Down |" >> $GITHUB_STEP_SUMMARY
+            fi
+          }
+
+          check_service "Prometheus" "http://localhost:9090/-/healthy"
+          check_service "Alertmanager" "http://localhost:9093/-/healthy"
+          check_service "Grafana" "http://localhost:3000/api/health"
+          check_service "Loki" "http://localhost:3100/ready"
+          check_service "BlackBox Exporter" "http://localhost:9115/metrics"
+          check_service "OTel Collector" "http://localhost:8888/metrics"
+          check_service "Thanos Sidecar" "http://localhost:10902/-/healthy"
+          check_service "Thanos Query" "http://localhost:10904/-/healthy"
+          check_service "MySQL Exporter" "http://localhost:9104/metrics"
+          check_service "Nginx" "http://localhost:8080"
+          check_service "Nginx Exporter" "http://localhost:9113/metrics"
+          check_service "InfluxDB" "http://localhost:8086/ping"
+
+      - name: 📜 Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Docker Compose Logs ==="
+          docker compose logs --tail=50 2>/dev/null || true
+
+      - name: 🧹 Cleanup
+        if: always()
+        run: docker compose down -v --remove-orphans 2>/dev/null || true

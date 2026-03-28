@@ -87,3 +87,10 @@ jobs:
         echo "🐍 Testing Python script syntax..."
         python3 -m py_compile scripts/webhook_receiver.py
         echo "✅ Python script syntax is valid"
+
+    - name: ✅ Validate New Config Files
+      run: |
+        echo "🔍 Validating additional configuration files..."
+        python3 -m pip install --quiet pyyaml
+        python3 scripts/validate_configs.py
+        echo "✅ All additional configs validated"

@@ -1,7 +1,7 @@
 # 🔭 Prometheus Monitoring Stack
 
 ![Quick Validation](https://github.com/kasunsjc/promethues-lab/actions/workflows/quick-validate.yml/badge.svg)
-![Full Stack Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/validate-demos.yml/badge.svg)
+![Full Stack Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/full-stack-validation.yml/badge.svg)
 ![Alert System Test](https://github.com/kasunsjc/promethues-lab/actions/workflows/test-alerts.yml/badge.svg)
 ![Load Test Validation](https://github.com/kasunsjc/promethues-lab/actions/workflows/load-test-validation.yml/badge.svg)
 
@@ -14,8 +14,14 @@ This repository contains a comprehensive Docker Compose setup for monitoring wit
 - **🗄️ MySQL**: Sample database with test data
 - **📡 MySQL Exporter**: Collects metrics from MySQL
 - **📊 Grafana**: Visualizes metrics from Prometheus
-- **�️ Ubuntu**: Simulated Ubuntu server with Node Exporter for monitoring
+- **🏠 Ubuntu**: Simulated Ubuntu server with Node Exporter for monitoring
 - **🌐 Nginx**: Web server for serving static content
+- **📋 Loki**: Log aggregation system (like Prometheus, but for logs)
+- **📝 Promtail**: Agent that ships container logs to Loki
+- **🔭 OpenTelemetry Collector**: Unified telemetry pipeline for traces, metrics, and logs
+- **🔍 BlackBox Exporter**: Endpoint probing (HTTP, TCP, ICMP)
+- **🏗️ Thanos Sidecar**: Exposes Prometheus TSDB blocks to Thanos Query via gRPC StoreAPI (long-term retention requires an object store + compactor, which are not configured in this lab)
+- **🔎 Thanos Query**: HA query layer that federates across Prometheus instances and Thanos stores
 
 ## 🚀 Quick Start
 
@@ -48,6 +54,21 @@ docker-compose up -d
 - **📦 InfluxDB**:
   - URL: [http://localhost:8086](http://localhost:8086)
   - Database: k6
+- **📋 Loki**:
+  - API: [http://localhost:3100](http://localhost:3100)
+  - Query logs via Grafana Explore with the Loki datasource
+- **🔭 OpenTelemetry Collector**:
+  - OTLP gRPC: `localhost:4317`
+  - OTLP HTTP: `localhost:4318`
+  - Self-metrics: [http://localhost:8888/metrics](http://localhost:8888/metrics)
+- **🔍 BlackBox Exporter**:
+  - Metrics: [http://localhost:9115/metrics](http://localhost:9115/metrics)
+  - Probe UI: [http://localhost:9115/probe?target=http://nginx:80&module=http_2xx](http://localhost:9115/probe?target=http://nginx:80&module=http_2xx)
+- **🏗️ Thanos Sidecar**:
+  - gRPC: `localhost:10901`
+  - HTTP: [http://localhost:10902](http://localhost:10902)
+- **🔎 Thanos Query**:
+  - UI: [http://localhost:10904](http://localhost:10904)
 
 ## 🛠️ Helper Scripts
 
@@ -159,7 +180,8 @@ To view the results:
 
 ## 📂 Directory Structure
 
-- `config/`: ⚙️ Configuration files (prometheus.yml, alertmanager.yml, alert rules)
+- `config/`: ⚙️ Configuration files (prometheus.yml, alertmanager.yml, alert rules, loki, promtail, OTel, blackbox)
+- `config/file_sd/`: 📁 File-based service discovery target definitions
 - `scripts/`: 🛠️ Helper scripts for validation, testing, and monitoring operations
 - `mysql-init/`: 🗄️ SQL initialization scripts for MySQL
 - `mysqld-exporter/`: 📡 Configuration for MySQL Exporter
@@ -257,6 +279,143 @@ After making changes to configuration files, restart the services:
 docker-compose restart prometheus alertmanager
 ```
 
+## 📁 File-Based Service Discovery
+
+Instead of hardcoding targets in `prometheus.yml`, file-based service discovery allows dynamic target management without restarting Prometheus.
+
+### How It Works
+- Targets are defined in `config/file_sd/targets.json`
+- Prometheus watches this file and automatically picks up changes every 30 seconds
+- Add labels like `environment`, `team` for better organization
+
+### Adding New Targets
+Edit `config/file_sd/targets.json` and add a new entry:
+```json
+{
+  "targets": ["new-service:9100"],
+  "labels": {
+    "job": "new-service",
+    "environment": "lab",
+    "team": "your-team"
+  }
+}
+```
+No restart needed — Prometheus picks up changes automatically.
+
+## 📋 Loki & Promtail (Log Aggregation)
+
+Loki provides log aggregation alongside your metrics, using the same label-based approach as Prometheus.
+
+### Architecture
+- **Promtail** collects logs from Docker containers via the Docker socket
+- **Loki** stores and indexes the logs
+- **Grafana** queries Loki for log visualization (Explore view)
+
+### Querying Logs
+1. Open Grafana → **Explore**
+2. Select **Loki** datasource
+3. Use LogQL:
+```logql
+# All logs from the nginx container
+{container="nginx"}
+
+# Error logs across all services
+{job="containers"} |= "error"
+
+# Logs from a specific service with JSON parsing
+{service="prometheus"} | json | level="error"
+```
+
+### Configuration
+- Loki config: `config/loki-config.yml` (local storage, 7-day retention)
+- Promtail config: `config/promtail-config.yml` (Docker container log scraping)
+
+## 🔭 OpenTelemetry Collector
+
+The OpenTelemetry Collector provides a vendor-agnostic pipeline for receiving, processing, and exporting telemetry data (traces, metrics, logs).
+
+### Receivers
+- **OTLP gRPC** on port `4317` — for instrumented applications
+- **OTLP HTTP** on port `4318` — for browser/HTTP-based telemetry
+
+### Exporters
+- **Prometheus** — metrics exported on port `8889` and scraped by Prometheus
+- **Loki** — logs forwarded to Loki via OTLP
+- **Debug** — console output for lab visibility
+
+### Sending Telemetry
+Instrument your apps to send data to the collector:
+```bash
+# Example: Send test traces via OTLP HTTP
+curl -X POST http://localhost:4318/v1/traces \
+  -H "Content-Type: application/json" \
+  -d '{"resourceSpans": []}'
+```
+
+### Configuration
+- Collector config: `config/otel-collector-config.yml`
+- Self-metrics: [http://localhost:8888/metrics](http://localhost:8888/metrics)
+
+## 🔍 BlackBox Exporter (Endpoint Probing)
+
+The BlackBox Exporter probes endpoints over HTTP, TCP, and ICMP to verify availability and measure response times.
+
+### Probe Modules
+| Module | Protocol | Use Case |
+|--------|----------|----------|
+| `http_2xx` | HTTP GET | Verify HTTP endpoints return 200 |
+| `http_post_2xx` | HTTP POST | Verify POST endpoints |
+| `tcp_connect` | TCP | Check port connectivity |
+| `icmp_check` | ICMP | Ping checks |
+
+### Probed Endpoints
+- **HTTP**: Nginx, Grafana, Prometheus, Alertmanager
+- **TCP**: MySQL (3306), Loki (3100)
+
+### Alert Rules
+- **EndpointDown**: Fires when any probed endpoint is unreachable for 1 minute
+- **EndpointSlowResponse**: Fires when response time exceeds 2 seconds
+- **SSLCertExpiringSoon**: Warns when SSL certificates expire within 30 days
+- **HTTPStatusCodeFailure**: Fires on unexpected HTTP status codes
+
+### Manual Probe Test
+```bash
+# Probe Nginx via HTTP
+curl "http://localhost:9115/probe?target=http://nginx:80&module=http_2xx"
+
+# Probe MySQL via TCP
+curl "http://localhost:9115/probe?target=mysql:3306&module=tcp_connect"
+```
+
+### Configuration
+- BlackBox config: `config/blackbox.yml`
+
+## 🏗️ Thanos (Query Federation & HA)
+
+This lab runs Thanos Sidecar + Query to provide a Prometheus-compatible query API that deduplicates series across replicas. The sidecar exposes the local Prometheus TSDB via gRPC StoreAPI; Thanos Query federates over it.
+
+> **Note**: Long-term storage (block upload to an object store) is **not** configured here. For durable retention you would also need an object store (e.g. MinIO/S3), `--objstore.config` on the sidecar, and a Thanos Compactor + Store Gateway.
+
+### Components
+- **Thanos Sidecar**: Runs alongside Prometheus, reads its TSDB, and exposes it via gRPC
+- **Thanos Query**: Provides a Prometheus-compatible query API that federates across multiple sidecars
+
+### Architecture
+```
+Prometheus → Thanos Sidecar (gRPC:10901) → Thanos Query (UI:10904)
+                                                ↓
+                                          Grafana (Thanos datasource)
+```
+
+### Usage
+1. Access Thanos Query UI at [http://localhost:10904](http://localhost:10904)
+2. In Grafana, select the **Thanos** datasource for a deduplicated, federated view of metrics
+3. Thanos Query supports the same PromQL as Prometheus
+
+### Configuration
+- Prometheus is configured with `--storage.tsdb.min-block-duration=2h` and `--storage.tsdb.max-block-duration=2h` for optimal Thanos integration
+- External labels (`cluster`, `replica`) are set in `prometheus.yml` for deduplication
+
 ## 🚀 GitHub Actions Validation
 
 This repository includes comprehensive GitHub Actions workflows to validate the monitoring stack:
@@ -274,7 +433,7 @@ This repository includes comprehensive GitHub Actions workflows to validate the 
   - Shell script syntax
   - Python script syntax
 
-#### **Full Stack Validation** (`validate-demos.yml`)
+#### **Full Stack Validation** (`full-stack-validation.yml`)
 - **Triggers**: Push to main/develop, PRs to main, manual trigger, daily schedule
 - **Duration**: ~15 minutes
 - **Tests**:
