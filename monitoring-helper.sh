@@ -43,6 +43,13 @@ display_menu() {
   echo -e "  ${GREEN}18.${NC} 🔑 Display access URLs and credentials"
   echo -e "  ${GREEN}19.${NC} 🔥 Run k6 Load Tests"
   echo -e "  ${GREEN}20.${NC} 📊 Import Official k6 Dashboard to Grafana"
+  echo
+  echo -e "${BOLD}🔭 Sample OTel Webapp:${NC}"
+  echo -e "  ${GREEN}21.${NC} 📜 View sample-webapp logs"
+  echo -e "  ${GREEN}22.${NC} 📜 View OTel Collector logs (traces/debug)"
+  echo -e "  ${GREEN}23.${NC} 🌐 Hit each webapp endpoint once"
+  echo -e "  ${GREEN}24.${NC} 🔁 Generate continuous traffic (load.sh)"
+  echo -e "  ${GREEN}25.${NC} 🔨 Rebuild & restart sample-webapp"
   echo -e "  ${GREEN}0.${NC} 👋 Exit"
   echo
 }
@@ -64,7 +71,7 @@ display_menu
 
 # Wait for user input
 while true; do
-  read -p "Enter your choice [0-20]: " choice
+  read -p "Enter your choice [0-25]: " choice
   case $choice in
     0)
       echo -e "${BLUE}👋 Exiting. Goodbye!${NC}"
@@ -154,6 +161,13 @@ while true; do
       echo -e "  🔗 URL: http://localhost:8086"
       echo -e "  📂 Database: k6"
       echo
+      echo -e "${BOLD}🔭 Sample OTel Webapp:${NC}"
+      echo -e "  🔗 URL: http://localhost:5050"
+      echo -e "  🛣️  Endpoints: /, /work, /chain, /error, /healthz"
+      echo -e "  📡 OTLP gRPC -> otel-collector:4317"
+      echo -e "  🪵 Logs in Loki: {service_name=\"sample-webapp\"}"
+      echo -e "  📈 Metrics in Prometheus: otel_webapp_requests_total"
+      echo
       echo -e "Press Enter to continue..."
       read
       clear
@@ -190,8 +204,23 @@ while true; do
     20)
       run_command "./scripts/import-k6-dashboard.sh"
       ;;
+    21)
+      run_command "docker logs --tail 200 -f sample-webapp"
+      ;;
+    22)
+      run_command "docker logs --tail 200 -f otel-collector"
+      ;;
+    23)
+      run_command "for ep in / /work /chain /error /healthz; do echo \"--> \$ep\"; curl -s -o /dev/null -w 'HTTP %{http_code}  %{time_total}s\n' http://localhost:5050\$ep; done"
+      ;;
+    24)
+      run_command "BASE_URL=http://localhost:5050 bash ./webapp/load.sh"
+      ;;
+    25)
+      run_command "docker-compose up -d --build sample-webapp"
+      ;;
     *)
-      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 20.${NC}"
+      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 25.${NC}"
       ;;
   esac
 done

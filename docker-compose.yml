@@ -241,12 +241,37 @@ services:
     ports:
       - "4317:4317"    # OTLP gRPC receiver
       - "4318:4318"    # OTLP HTTP receiver
-      - "8888:8888"    # OTel Collector metrics
+      - "8888:8888"    # OTel Collector self metrics
+      - "8889:8889"    # Prometheus exporter (OTLP-derived metrics)
     networks:
       - monitoring
     depends_on:
       - prometheus
       - loki
+
+  # ─── Sample OTel-instrumented Web App ───────────────────────────────
+  # Generates traces, metrics, and logs and exports them via OTLP to the
+  # otel-collector. The collector forwards logs to Loki, metrics to
+  # Prometheus (port 8889), and traces to the debug exporter.
+  sample-webapp:
+    build:
+      context: ./webapp
+    image: prometheus-lab/sample-webapp:latest
+    pull_policy: build
+    container_name: sample-webapp
+    restart: unless-stopped
+    environment:
+      - OTEL_SERVICE_NAME=sample-webapp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - ENVIRONMENT=lab
+      - CHAIN_TARGET=http://nginx:80/
+    ports:
+      - "5050:5000"
+    networks:
+      - monitoring
+    depends_on:
+      - otel-collector
+      - nginx
 
   # ─── BlackBox Exporter: Endpoint Probing ─────────────────────────────
   blackbox-exporter:
