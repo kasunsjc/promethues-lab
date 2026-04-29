@@ -172,7 +172,7 @@ jobs:
           
           # Check if Prometheus is scraping targets
           echo "🔍 Checking Prometheus targets..."
-          targets=$(curl -s http://localhost:9090/api/v1/targets | jq -r '.data.activeTargets[] | select(.health == "up") | .labels.job' | sort -u)
+          targets=$(curl -s http://localhost:9090/api/v1/targets | jq -r '.data.activeTargets[] | select(.health == "up") | .labels.service // .labels.job' | sort -u)
           echo "Active targets: $targets"
           
           # Verify key metrics exist
@@ -188,7 +188,19 @@ jobs:
           
           # Specifically check Ubuntu service is being monitored
           echo "🔍 Checking Ubuntu service metrics..."
-          ubuntu_up=$(curl -s "http://localhost:9090/api/v1/query?query=up{job=\"ubuntu\"}" | jq '.data.result | length')
+          # Targets are discovered via file_sd under job="file-sd-targets" with a
+          # per-target "service" label (see config/file_sd/targets.json), so query by service.
+          # The ubuntu container bootstraps node_exporter at runtime (apt-get + download),
+          # which can take ~60-120s, so retry until it appears.
+          ubuntu_up=0
+          for i in {1..18}; do
+            ubuntu_up=$(curl -s "http://localhost:9090/api/v1/query?query=up%7Bservice%3D%22ubuntu%22%7D%20%3D%3D%201" | jq '.data.result | length')
+            if [[ "$ubuntu_up" -gt 0 ]]; then
+              break
+            fi
+            echo "⏳ Waiting for Ubuntu node_exporter to be scraped... (attempt $i/18)"
+            sleep 10
+          done
           if [[ "$ubuntu_up" -gt 0 ]]; then
             echo "✅ Ubuntu service is being monitored"
           else
