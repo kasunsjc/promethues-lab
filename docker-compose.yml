@@ -130,15 +130,12 @@ services:
       - loki
 
   ubuntu:
-    image: ubuntu:latest
+    # Use the official node_exporter image so the target is scrapeable immediately.
+    # The container is still named "ubuntu" so existing dashboards, alerts and the
+    # file_sd target (config/file_sd/targets.json -> ubuntu:9100) keep working.
+    image: prom/node-exporter:v1.8.2
     container_name: ubuntu
     restart: unless-stopped
-    command: >
-      bash -c "apt-get update &&
-               apt-get install -y curl wget gnupg2 lsb-release &&
-               wget -q -O - https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz | tar xzf - -C /tmp &&
-               cp /tmp/node_exporter-1.6.1.linux-amd64/node_exporter /usr/local/bin/ &&
-               /usr/local/bin/node_exporter"
     ports:
       - "9101:9100" # Node exporter (for monitoring)
     networks:

@@ -7,7 +7,47 @@ BOLD='\033[1m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
+
+# Detect OS for opening URLs. Returns non-zero if no opener is found or opener fails.
+open_url() {
+  local url="$1"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    open "$url"
+  elif grep -qi microsoft /proc/version 2>/dev/null && command -v wslview &> /dev/null; then
+    wslview "$url"
+  elif command -v xdg-open &> /dev/null; then
+    xdg-open "$url"
+  elif command -v wslview &> /dev/null; then
+    wslview "$url"
+  else
+    echo -e "${YELLOW}⚠️  Cannot detect browser. Please open manually: ${url}${NC}"
+    return 1
+  fi
+}
+
+open_portals() {
+  local failed=0
+  echo -e "${BOLD}${BLUE}=== 🌐 Opening Service Portals ===${NC}"
+  echo -e "  🔗 Opening Prometheus...     http://localhost:9090"
+  open_url "http://localhost:9090" || failed=1
+  sleep 1
+  echo -e "  🔗 Opening Grafana...        http://localhost:3000"
+  open_url "http://localhost:3000" || failed=1
+  sleep 1
+  echo -e "  🔗 Opening Alertmanager...   http://localhost:9093"
+  open_url "http://localhost:9093" || failed=1
+  sleep 1
+  echo -e "  🔗 Opening Nginx...          http://localhost:8080"
+  open_url "http://localhost:8080" || failed=1
+  echo
+  if [[ $failed -eq 0 ]]; then
+    echo -e "${GREEN}✅ All portals opened in your default browser!${NC}"
+  else
+    echo -e "${YELLOW}⚠️  Some portals could not be opened automatically. Please open them manually.${NC}"
+  fi
+}
 
 # Display the header
 echo -e "${BOLD}${BLUE}=== 🔭 Prometheus Monitoring Stack Helper 🚀 ===${NC}"
@@ -43,6 +83,7 @@ display_menu() {
   echo -e "  ${GREEN}18.${NC} 🔑 Display access URLs and credentials"
   echo -e "  ${GREEN}19.${NC} 🔥 Run k6 Load Tests"
   echo -e "  ${GREEN}20.${NC} 📊 Import Official k6 Dashboard to Grafana"
+  echo -e "  ${GREEN}21.${NC} 🌐 Open all service portals in browser"
   echo -e "  ${GREEN}0.${NC} 👋 Exit"
   echo
 }
@@ -53,6 +94,11 @@ run_command() {
   eval $1
   echo
   echo -e "${GREEN}✅ Command completed!${NC}"
+  pause_and_return
+}
+
+# Helper: pause for Enter, then redraw menu
+pause_and_return() {
   echo -e "Press Enter to continue..."
   read
   clear
@@ -64,14 +110,27 @@ display_menu
 
 # Wait for user input
 while true; do
-  read -p "Enter your choice [0-20]: " choice
+  read -p "Enter your choice [0-21]: " choice
   case $choice in
     0)
       echo -e "${BLUE}👋 Exiting. Goodbye!${NC}"
       exit 0
       ;;
     1)
-      run_command "docker-compose up -d"
+      echo -e "${YELLOW}🚀 Running: ${BOLD}docker-compose up -d${NC}"
+      if docker-compose up -d; then
+        echo
+        echo -e "${GREEN}✅ Stack is up!${NC}"
+        echo
+        read -p "🌐 Open service portals in browser? [y/N]: " open_choice
+        if [[ "$open_choice" =~ ^[Yy]$ ]]; then
+          open_portals
+        fi
+      else
+        echo
+        echo -e "${RED}❌ Failed to start the stack. Please check the output above.${NC}"
+      fi
+      pause_and_return
       ;;
     2)
       run_command "docker-compose down"
@@ -154,10 +213,7 @@ while true; do
       echo -e "  🔗 URL: http://localhost:8086"
       echo -e "  📂 Database: k6"
       echo
-      echo -e "Press Enter to continue..."
-      read
-      clear
-      display_menu
+      pause_and_return
       ;;
     19)
       clear
@@ -190,8 +246,12 @@ while true; do
     20)
       run_command "./scripts/import-k6-dashboard.sh"
       ;;
+    21)
+      open_portals
+      pause_and_return
+      ;;
     *)
-      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 20.${NC}"
+      echo -e "${YELLOW}⚠️ Invalid choice. Please enter a number between 0 and 21.${NC}"
       ;;
   esac
 done
