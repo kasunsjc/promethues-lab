@@ -18,7 +18,8 @@
    ```
 2. Make changes and commit with clear, descriptive messages.
 3. Push the branch and open a pull request targeting `main`.
-4. Ensure all CI checks pass before requesting review:
+4. Ensure all CI checks pass before requesting review, including:
+   - 🔭 Validate Prometheus Monitoring Stack
    - Quick Validation
    - Full Stack Validation
    - Alert System Test
